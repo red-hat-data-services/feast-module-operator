@@ -8,9 +8,9 @@ require (
 	github.com/lburgazzoli/gomega-matchers v0.4.1-0.20260219145423-4061a5fb8799
 	github.com/onsi/gomega v1.41.0
 	github.com/opendatahub-io/odh-platform-utilities v0.0.0-20260528075406-6d9164111905
-	github.com/opendatahub-io/opendatahub-operator/v2 v2.0.0-00010101000000-000000000000
+	github.com/opendatahub-io/opendatahub-operator/v2 v2.0.0-20260623231533-8c88244c7795
 	github.com/operator-framework/api v0.42.0
-	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.68.0
+	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.74.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	k8s.io/api v0.36.1
@@ -57,7 +57,6 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.25.4 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -79,7 +78,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/openshift/api v0.0.0-20230823114715-5fdd7511b790 // indirect
+	github.com/openshift/api v0.0.0-20260521125114-09730f85d883 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -128,9 +127,3 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 )
-
-// Temporary: uses lburgazzoli's fork which contains the modular handler
-// framework (StevenTobin/add_modular_handler branch) not yet merged upstream.
-// Tracked by: https://github.com/opendatahub-io/opendatahub-operator/pull/TBD
-// Remove once the modular handler framework is merged into opendatahub-operator.
-replace github.com/opendatahub-io/opendatahub-operator/v2 => github.com/lburgazzoli/opendatahub-operator/v2 v2.0.0-20260522211029-67d95fa3b5a1

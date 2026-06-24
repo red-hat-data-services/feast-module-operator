@@ -39,7 +39,6 @@ import (
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/predicates/component"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/reconciler"
-	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/controller/status"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
@@ -115,7 +114,7 @@ func NewReconciler(
 			gc.InNamespace(cfg.ApplicationsNamespace),
 		)).
 		WithConditions(
-			status.ConditionDeploymentsAvailable,
+			"DeploymentsAvailable",
 		).
 		Build(ctx)
 
