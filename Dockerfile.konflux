@@ -1,0 +1,51 @@
+ARG GOLANG_VERSION=1.26
+
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+
+FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset@sha256:b2bc0c6c92c56dce575ed1b2dec1ec9f8b345a80ef5e74d9bfd530b6b354feeb AS builder
+ARG CGO_ENABLED=0
+ARG TARGETOS
+ARG TARGETARCH
+ARG LDFLAGS=""
+
+WORKDIR /workspace
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY Makefile Makefile
+COPY api/ api/
+COPY cmd/ cmd/
+COPY internal/ internal/
+COPY pkg/ pkg/
+COPY config/manifests/ config/manifests/
+
+USER root
+RUN CGO_ENABLED=${CGO_ENABLED} GOEXPERIMENT=strictfipsruntime GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    make build-bin BIN_DIR=/workspace/bin BIN_NAME=manager LDFLAGS="${LDFLAGS}"
+
+RUN chmod -R a+rX config/manifests/
+
+FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-micro@sha256:9dbba28e4f18a6faf4b84aad44e12858c7cc4cb29c0427f3f0fff45ce4491417
+
+WORKDIR /
+COPY --from=builder /workspace/bin/manager .
+COPY --from=builder /workspace/config/manifests/ /manifests/
+
+# Fix permissions for OpenShift (assigns arbitrary UIDs)
+RUN chgrp -R 0 /manager /manifests && \
+    chmod -R g=u /manager /manifests
+
+USER 65532:65532
+
+ENTRYPOINT ["/manager"]
+
+LABEL com.redhat.component="odh-feast-module-operator-rhel9" \
+      name="rhoai/odh-feast-module-operator-rhel9" \
+      summary="OpenDataHub Feast Module Operator" \
+      description="Operator for managing Feast feature store deployments on OpenShift" \
+      maintainer="['managed-open-data-hub@redhat.com']" \
+      io.k8s.display-name="odh-feast-module-operator" \
+      io.k8s.description="Operator for managing Feast module deployments on OpenShift" \
+      com.redhat.license_terms="https://www.redhat.com/licenses/Red_Hat_Standard_EULA_20191108.pdf"
