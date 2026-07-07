@@ -27,7 +27,7 @@ RUN CGO_ENABLED=${CGO_ENABLED} GOEXPERIMENT=strictfipsruntime GOOS=${TARGETOS:-l
 
 RUN chmod -R a+rX config/manifests/
 
-FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-micro@sha256:9dbba28e4f18a6faf4b84aad44e12858c7cc4cb29c0427f3f0fff45ce4491417
+FROM --platform=$TARGETPLATFORM registry.access.redhat.com/ubi9/ubi-micro@sha256:35de56a9413112f1474e392ebc35e0cf6f0fb484c8e8877bbae59b513694b41f
 
 WORKDIR /
 COPY --from=builder /workspace/bin/manager .
