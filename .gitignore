@@ -33,4 +33,3 @@ local.mk
 
 # direnv
 .envrc
-0001-feat-add-platform-version-handshake-and-admin-ack-ga.patch

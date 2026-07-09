@@ -26,7 +26,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -41,6 +40,7 @@ import (
 	componentsv1alpha1 "github.com/opendatahub-io/feast-module-operator/api/components/v1"
 	"github.com/opendatahub-io/feast-module-operator/internal/controller/feastoperator"
 	moduleconfig "github.com/opendatahub-io/feast-module-operator/pkg/config"
+	libcache "github.com/opendatahub-io/odh-platform-utilities/pkg/cache"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 )
@@ -49,15 +49,6 @@ const (
 	healthCheckName = "healthz"
 	readyCheckName  = "readyz"
 )
-
-// stripManagedFields removes managedFields from cached objects to reduce
-// memory usage. These fields are unnecessary when using server-side apply.
-func stripManagedFields(in any) (any, error) {
-	if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
-		obj.SetManagedFields(nil)
-	}
-	return in, nil
-}
 
 type Option func(*ctrl.Options)
 
@@ -107,7 +98,7 @@ func New(
 		LeaderElectionID:              cfg.Controller.LeaderElection.ID,
 		LeaderElectionReleaseOnCancel: true,
 		Cache: cache.Options{
-			DefaultTransform: stripManagedFields,
+			DefaultTransform: libcache.StripUnusedFields(),
 			ByObject: map[client.Object]cache.ByObject{
 				&componentsv1alpha1.FeastOperator{}:         {Label: k8slabels.Everything()},
 				&apiextensionsv1.CustomResourceDefinition{}: {Label: k8slabels.Everything()},
