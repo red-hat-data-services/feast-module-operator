@@ -45,7 +45,7 @@ make test-integration
 ### Build Container Image
 
 ```bash
-make container-build IMG=quay.io/opendatahub/feast-module-operator:dev
+make container-build IMG=quay.io/rhoai/odh-feast-module-operator-rhel9:rhoai-3.5
 ```
 
 ### Generate Helm Chart
