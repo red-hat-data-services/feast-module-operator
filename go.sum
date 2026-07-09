@@ -157,8 +157,6 @@ github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJw
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
 github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a h1:MQWRo9YDTNsJh+82XWkDhqxQEJcd0I4vScIArwVIDCU=
 github.com/opendatahub-io/models-as-a-service/maas-controller v0.0.0-20260420142354-89fba298f42a/go.mod h1:uMYnqqPwy+1ub8me0YMZRZ1vrUQY9jS9nMcUXLBp88k=
-github.com/opendatahub-io/odh-platform-utilities v0.0.0-20260528075406-6d9164111905 h1:dBuF0o341eWgZ6jjsH400sgUZ4hLS57JiCD+OgQP568=
-github.com/opendatahub-io/odh-platform-utilities v0.0.0-20260528075406-6d9164111905/go.mod h1:qArV52ZzbXEOivpKDr+Y84B+boaTEF5edkGW0d3cerA=
 github.com/opendatahub-io/opendatahub-operator/v2 v2.0.0-20260623231533-8c88244c7795 h1:3iOMmP/11tY70Hzmt2skGsbPUDzt4PcuAlPSeubJiTA=
 github.com/opendatahub-io/opendatahub-operator/v2 v2.0.0-20260623231533-8c88244c7795/go.mod h1:PWqZiONp9jqJysUZzCmJAmk8Zhzmd3SLQgq9MYPBEDs=
 github.com/openshift/api v0.0.0-20260521125114-09730f85d883 h1:So9yxVJRY+F1aVBjcDw6N3M4h30wyH/GpkazK8xT4TI=

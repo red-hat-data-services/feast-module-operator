@@ -22,8 +22,11 @@ import (
 
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/spf13/viper"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	k8slabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -38,16 +41,23 @@ import (
 	componentsv1alpha1 "github.com/opendatahub-io/feast-module-operator/api/components/v1"
 	"github.com/opendatahub-io/feast-module-operator/internal/controller/feastoperator"
 	moduleconfig "github.com/opendatahub-io/feast-module-operator/pkg/config"
-	libcache "github.com/opendatahub-io/odh-platform-utilities/pkg/cache"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 	odhmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
-	odhLabels "github.com/opendatahub-io/opendatahub-operator/v2/pkg/metadata/labels"
 )
 
 const (
 	healthCheckName = "healthz"
 	readyCheckName  = "readyz"
 )
+
+// stripManagedFields removes managedFields from cached objects to reduce
+// memory usage. These fields are unnecessary when using server-side apply.
+func stripManagedFields(in any) (any, error) {
+	if obj, err := meta.Accessor(in); err == nil && obj.GetManagedFields() != nil {
+		obj.SetManagedFields(nil)
+	}
+	return in, nil
+}
 
 type Option func(*ctrl.Options)
 
@@ -79,6 +89,13 @@ func New(
 	cluster.SetRHAIApplicationNamespace(cfg.ApplicationsNamespace)
 
 	scheme := NewScheme()
+
+	// Namespace-scoped cache config: scope informers to the applications
+	// namespace so the operator only watches its own resources.
+	nsCache := map[string]cache.Config{
+		cfg.ApplicationsNamespace: {},
+	}
+
 	mgrOpts := ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
@@ -90,24 +107,16 @@ func New(
 		LeaderElectionID:              cfg.Controller.LeaderElection.ID,
 		LeaderElectionReleaseOnCancel: true,
 		Cache: cache.Options{
-			DefaultTransform: libcache.StripUnusedFields(),
-			DefaultNamespaces: map[string]cache.Config{
-				cfg.ApplicationsNamespace: {
-					LabelSelector: k8slabels.SelectorFromSet(k8slabels.Set{
-						odhLabels.PlatformPartOf: odhLabels.NormalizePartOfValue(componentsv1alpha1.FeastOperatorKind),
-					}),
-				},
-				cache.AllNamespaces: {
-					LabelSelector: k8slabels.SelectorFromSet(k8slabels.Set{
-						odhLabels.PlatformPartOf: odhLabels.NormalizePartOfValue(componentsv1alpha1.FeastOperatorKind),
-					}),
-				},
-			},
+			DefaultTransform: stripManagedFields,
 			ByObject: map[client.Object]cache.ByObject{
 				&componentsv1alpha1.FeastOperator{}:         {Label: k8slabels.Everything()},
 				&apiextensionsv1.CustomResourceDefinition{}: {Label: k8slabels.Everything()},
+				&appsv1.Deployment{}:                        {Namespaces: nsCache},
+				&corev1.Service{}:                           {Namespaces: nsCache},
+				&corev1.ServiceAccount{}:                    {Namespaces: nsCache},
+				&rbacv1.Role{}:                              {Namespaces: nsCache},
+				&rbacv1.RoleBinding{}:                       {Namespaces: nsCache},
 			},
-			ReaderFailOnMissingInformer: true,
 		},
 		Client: client.Options{
 			Cache: &client.CacheOptions{
