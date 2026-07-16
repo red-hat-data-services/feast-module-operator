@@ -109,9 +109,9 @@ func NewReconciler(
 		).
 		WithAction(m.initialize).
 		WithAction(m.upgradeIfNeeded).
-		WithAction(m.reconcilePlatformVersion).
 		WithAction(m.setKustomizedParams).
 		WithAction(releases.NewAction()).
+		WithAction(m.reconcilePlatformVersion).
 		WithAction(kustomize.NewAction(
 			kustomize.WithLabel(labels.ODH.Component(componentName), labels.True),
 			kustomize.WithLabel(labels.K8SCommon.PartOf, componentName),

@@ -191,6 +191,17 @@ func TestGetSetPlatformRelease(t *testing.T) {
 	setPlatformRelease(obj, "2.21.0")
 	g.Expect(getPlatformRelease(obj)).To(Equal("2.21.0"))
 	g.Expect(obj.Status.Releases).To(HaveLen(1))
+
+	// Simulate releases.NewAction() overwriting status.releases with
+	// component releases, then setPlatformRelease appending the platform
+	// entry — this mirrors the actual controller action ordering.
+	obj.SetReleaseStatus([]common.ComponentRelease{
+		{Name: "Feast", Version: "0.64.0"},
+	})
+	g.Expect(getPlatformRelease(obj)).To(Equal(""))
+	setPlatformRelease(obj, "2.21.0")
+	g.Expect(getPlatformRelease(obj)).To(Equal("2.21.0"))
+	g.Expect(obj.Status.Releases).To(HaveLen(2))
 }
 
 func TestParseAndValidateOIDCIssuerURL(t *testing.T) {
