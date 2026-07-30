@@ -11,11 +11,11 @@ DST_MANIFESTS_DIR="${PROJECT_ROOT}/config/manifests/${COMPONENT_NAME}"
 if [[ "${ODH_PLATFORM_TYPE:-OpenDataHub}" == "OpenDataHub" ]]; then
     echo "Downloading manifests for ODH"
     REPO_URL="https://github.com/opendatahub-io/feast"
-    COMMIT_SHA="863b09f490926aec0df1b92d34d7acd8b26f2dde"
+    COMMIT_SHA="4a35fbab9ba628afd58d8e230e1e6619dbecd12b"
 else
     echo "Downloading manifests for RHOAI"
     REPO_URL="https://github.com/red-hat-data-services/feast"
-    COMMIT_SHA="90e6fe62d917887a17f0fe8a2bf489d5723777db"
+    COMMIT_SHA="2fd0449701dd6dc17cd8536a1bf02e9f6e9811a0"
 fi
 
 if [[ "${USE_LOCAL:-}" == "true" ]] && [[ -d "${PROJECT_ROOT}/../feast" ]]; then
