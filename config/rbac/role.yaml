@@ -17,6 +17,7 @@ rules:
   verbs:
   - create
   - delete
+  - deletecollection
   - get
   - list
   - patch
@@ -47,6 +48,7 @@ rules:
   verbs:
   - create
   - delete
+  - deletecollection
   - get
   - list
   - update
@@ -58,9 +60,17 @@ rules:
   - pods/exec
   verbs:
   - create
+  - delete
+  - deletecollection
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
 - apiGroups:
   - apiextensions.k8s.io
   resources:
@@ -148,6 +158,14 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - apiservers
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -243,3 +261,11 @@ rules:
   - list
   - update
   - watch
+- apiGroups:
+  - sparkoperator.k8s.io
+  resources:
+  - sparkapplications
+  verbs:
+  - create
+  - delete
+  - get
