@@ -15,7 +15,7 @@ if [[ "${ODH_PLATFORM_TYPE:-OpenDataHub}" == "OpenDataHub" ]]; then
 else
     echo "Downloading manifests for RHOAI"
     REPO_URL="https://github.com/red-hat-data-services/feast"
-    COMMIT_SHA="09251e112bea33557b70b9aaf50c29a79a97dc47"
+    COMMIT_SHA="c53367933f71084a9ba7b3199ee0815f1240a3dc"
 fi
 
 if [[ "${USE_LOCAL:-}" == "true" ]] && [[ -d "${PROJECT_ROOT}/../feast" ]]; then
