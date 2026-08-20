@@ -59,8 +59,10 @@ import (
 // +kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=get;list;watch;create;delete;update
 // +kubebuilder:rbac:groups=config.openshift.io,resources=apiservers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=sparkoperator.k8s.io,resources=sparkapplications,verbs=get;create;delete
-// +kubebuilder:rbac:groups="",resources=secrets;namespaces,verbs=get;list;watch;patch;update
-// +kubebuilder:rbac:groups="",resources=pods;pods/exec,verbs=get;list;watch;create;delete;deletecollection
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;update;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete;deletecollection
+// +kubebuilder:rbac:groups="",resources=pods/exec,verbs=create
 // +kubebuilder:rbac:groups="",resources=pods/log,verbs=get
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;delete;deletecollection;update
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -71,7 +73,7 @@ import (
 // +kubebuilder:rbac:groups=authentication.k8s.io,resources=tokenreviews,verbs=create
 // +kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
 // +kubebuilder:rbac:groups=kubeflow.org,resources=notebooks,verbs=get;list;watch
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=subjectaccessreviews,verbs=get;list;watch;create;update;delete
+// +kubebuilder:rbac:groups=mlflow.opendatahub.io,resources=mlflows,verbs=get;list;watch
 // +kubebuilder:rbac:urls=/metrics,verbs=get
 
 func NewReconciler(

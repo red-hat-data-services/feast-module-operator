@@ -122,6 +122,10 @@ lint-fix: ## Run golangci-lint linter and perform fixes.
 get-manifests: ## Download component manifests.
 	./hack/scripts/get-manifests.sh
 
+.PHONY: verify-rbac
+verify-rbac: manifests ## Verify module operator RBAC covers all operand permissions.
+	@go run ./hack/verify-rbac config/rbac/role.yaml config/manifests/feastoperator/rbac/role.yaml
+
 ##@ Build
 
 VERSION_PKG    = github.com/opendatahub-io/feast-module-operator/pkg/version
