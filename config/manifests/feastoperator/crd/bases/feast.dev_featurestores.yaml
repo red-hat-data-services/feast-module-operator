@@ -57,6 +57,9 @@ spec:
                           type: string
                         type: array
                     type: object
+                  noAuth:
+                    description: NoAuth explicitly disables authentication and authorization.
+                    type: boolean
                   oidc:
                     description: |-
                       OidcAuthz defines the authorization settings for deployments using an Open ID Connect identity provider.
@@ -81,6 +84,18 @@ spec:
                           to derive the discovery endpoint.
                         pattern: ^https://\S+$
                         type: string
+                      jwksCacheLifespanSeconds:
+                        description: Seconds the servers reuse the provider's fetched
+                          JWK set before refetching. Defaults to 300.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      jwksRequestTimeoutSeconds:
+                        description: Seconds before a JWKS fetch times out. Defaults
+                          to 10.
+                        format: int32
+                        minimum: 1
+                        type: integer
                       secretKeyName:
                         description: Key in the Secret containing all OIDC properties
                           as a YAML value. If unset, each key is a property.
@@ -109,8 +124,9 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
-                - message: One selection required between kubernetes or oidc.
-                  rule: '[has(self.kubernetes), has(self.oidc)].exists_one(c, c)'
+                - message: One selection required between kubernetes, oidc, or noAuth.
+                  rule: '[has(self.kubernetes), has(self.oidc), has(self.noAuth)].exists_one(c,
+                    c)'
               batchEngine:
                 description: BatchEngineConfig defines the batch compute engine configuration.
                 properties:
@@ -810,10 +826,32 @@ spec:
                         - pytorch_nlp
                         type: string
                     type: object
+                  packaged:
+                    description: FeastPackagedOptions describes a feature repository
+                      packaged in a feature server image.
+                    properties:
+                      featureRepoPath:
+                        description: FeatureRepoPath is the canonical absolute path
+                          to the feature repository in the image.
+                        type: string
+                      image:
+                        description: Image containing the packaged feature repository.
+                        type: string
+                    required:
+                    - featureRepoPath
+                    type: object
+                    x-kubernetes-validations:
+                    - message: FeatureRepoPath must be a canonical absolute, non-root
+                        path without dot segments or repeated separators.
+                      rule: self.featureRepoPath.startsWith('/') && self.featureRepoPath
+                        != '/' && !self.featureRepoPath.contains('//') && !self.featureRepoPath.endsWith('/')
+                        && !self.featureRepoPath.contains('/./') && !self.featureRepoPath.endsWith('/.')
+                        && !self.featureRepoPath.contains('/../') && !self.featureRepoPath.endsWith('/..')
                 type: object
                 x-kubernetes-validations:
-                - message: One selection required between init or git.
-                  rule: '[has(self.git), has(self.init)].exists_one(c, c)'
+                - message: One selection required between init, git, or packaged.
+                  rule: '[has(self.git), has(self.init), has(self.packaged)].exists_one(c,
+                    c)'
               materialization:
                 description: |-
                   Materialization controls feature materialization behavior (batch size, pull strategy).
@@ -834,6 +872,77 @@ spec:
                     minimum: 1
                     type: integer
                 type: object
+              mlflow:
+                description: |-
+                  Mlflow enables MLflow experiment tracking integration for Feast.
+                  Written into feature_store.
+                properties:
+                  autoLog:
+                    description: |-
+                      Automatically log feature metadata on every retrieval inside an active MLflow run.
+                      Defaults to true when enabled.
+                    type: boolean
+                  autoLogEntityDf:
+                    description: |-
+                      Save entity DataFrame as MLflow artifact on historical retrieval.
+                      Defaults to false.
+                    type: boolean
+                  enabled:
+                    description: Enable MLflow integration.
+                    type: boolean
+                  entityDfMaxRows:
+                    description: |-
+                      Maximum number of entity DataFrame rows to save as an MLflow artifact.
+                      DataFrames exceeding this limit are skipped.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  extraConfig:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      ExtraConfig holds additional MLflow key-value settings written inline into
+                      the mlflow block of feature_store.yaml.
+                    type: object
+                  logOperations:
+                    description: |-
+                      Log feast apply and materialize operations to a separate MLflow experiment.
+                      Defaults to false.
+                    type: boolean
+                  opsExperimentSuffix:
+                    description: |-
+                      Suffix appended to the project name for the operations experiment.
+                      Defaults to "-feast-ops".
+                    type: string
+                  trackingAuth:
+                    description: |-
+                      Authentication method used by Feast pods when calling the MLflow tracking
+                      server.
+                    type: string
+                  trackingUri:
+                    description: |-
+                      MLflow tracking server URI. When omitted, the operator auto-discovers
+                      from the cluster MLflow CR (status.address.url).
+                    type: string
+                  uiUrl:
+                    description: Browser-reachable MLflow UI URL used for hyperlinks
+                      in Feast UI lineage.
+                    type: string
+                required:
+                - enabled
+                type: object
+                x-kubernetes-validations:
+                - message: extraConfig must not contain keys that duplicate typed
+                    fields (enabled, tracking_uri, ui_url, tracking_auth, auto_log,
+                    auto_log_entity_df, entity_df_max_rows, log_operations, ops_experiment_suffix);
+                    use the corresponding spec fields instead.
+                  rule: '!has(self.extraConfig) || !(''enabled'' in self.extraConfig)
+                    && !(''tracking_uri'' in self.extraConfig) && !(''ui_url'' in
+                    self.extraConfig) && !(''tracking_auth'' in self.extraConfig)
+                    && !(''auto_log'' in self.extraConfig) && !(''auto_log_entity_df''
+                    in self.extraConfig) && !(''entity_df_max_rows'' in self.extraConfig)
+                    && !(''log_operations'' in self.extraConfig) && !(''ops_experiment_suffix''
+                    in self.extraConfig)'
               openlineage:
                 description: |-
                   OpenLineage enables OpenLineage data lineage tracking for Feast operations.
@@ -1723,6 +1832,10 @@ spec:
                   disableInitContainers:
                     description: Disable the 'feast repo initialization' initContainer
                     type: boolean
+                  initImage:
+                    description: InitImage overrides the image for init containers
+                      (feast-init, feast-apply).
+                    type: string
                   offlineStore:
                     description: OfflineStore configures the offline store service
                     properties:
@@ -1855,6 +1968,7 @@ spec:
                                 - clickhouse
                                 - ray
                                 - oracle
+                                - hybrid
                                 type: string
                             required:
                             - secretRef
@@ -6340,6 +6454,10 @@ spec:
                               type: string
                             type: array
                         type: object
+                      noAuth:
+                        description: NoAuth explicitly disables authentication and
+                          authorization.
+                        type: boolean
                       oidc:
                         description: |-
                           OidcAuthz defines the authorization settings for deployments using an Open ID Connect identity provider.
@@ -6364,6 +6482,18 @@ spec:
                               to derive the discovery endpoint.
                             pattern: ^https://\S+$
                             type: string
+                          jwksCacheLifespanSeconds:
+                            description: Seconds the servers reuse the provider's
+                              fetched JWK set before refetching. Defaults to 300.
+                            format: int32
+                            minimum: 1
+                            type: integer
+                          jwksRequestTimeoutSeconds:
+                            description: Seconds before a JWKS fetch times out. Defaults
+                              to 10.
+                            format: int32
+                            minimum: 1
+                            type: integer
                           secretKeyName:
                             description: Key in the Secret containing all OIDC properties
                               as a YAML value. If unset, each key is a property.
@@ -6392,8 +6522,9 @@ spec:
                         type: object
                     type: object
                     x-kubernetes-validations:
-                    - message: One selection required between kubernetes or oidc.
-                      rule: '[has(self.kubernetes), has(self.oidc)].exists_one(c,
+                    - message: One selection required between kubernetes, oidc, or
+                        noAuth.
+                      rule: '[has(self.kubernetes), has(self.oidc), has(self.noAuth)].exists_one(c,
                         c)'
                   batchEngine:
                     description: BatchEngineConfig defines the batch compute engine
@@ -7104,10 +7235,32 @@ spec:
                             - pytorch_nlp
                             type: string
                         type: object
+                      packaged:
+                        description: FeastPackagedOptions describes a feature repository
+                          packaged in a feature server image.
+                        properties:
+                          featureRepoPath:
+                            description: FeatureRepoPath is the canonical absolute
+                              path to the feature repository in the image.
+                            type: string
+                          image:
+                            description: Image containing the packaged feature repository.
+                            type: string
+                        required:
+                        - featureRepoPath
+                        type: object
+                        x-kubernetes-validations:
+                        - message: FeatureRepoPath must be a canonical absolute, non-root
+                            path without dot segments or repeated separators.
+                          rule: self.featureRepoPath.startsWith('/') && self.featureRepoPath
+                            != '/' && !self.featureRepoPath.contains('//') && !self.featureRepoPath.endsWith('/')
+                            && !self.featureRepoPath.contains('/./') && !self.featureRepoPath.endsWith('/.')
+                            && !self.featureRepoPath.contains('/../') && !self.featureRepoPath.endsWith('/..')
                     type: object
                     x-kubernetes-validations:
-                    - message: One selection required between init or git.
-                      rule: '[has(self.git), has(self.init)].exists_one(c, c)'
+                    - message: One selection required between init, git, or packaged.
+                      rule: '[has(self.git), has(self.init), has(self.packaged)].exists_one(c,
+                        c)'
                   materialization:
                     description: |-
                       Materialization controls feature materialization behavior (batch size, pull strategy).
@@ -7128,6 +7281,77 @@ spec:
                         minimum: 1
                         type: integer
                     type: object
+                  mlflow:
+                    description: |-
+                      Mlflow enables MLflow experiment tracking integration for Feast.
+                      Written into feature_store.
+                    properties:
+                      autoLog:
+                        description: |-
+                          Automatically log feature metadata on every retrieval inside an active MLflow run.
+                          Defaults to true when enabled.
+                        type: boolean
+                      autoLogEntityDf:
+                        description: |-
+                          Save entity DataFrame as MLflow artifact on historical retrieval.
+                          Defaults to false.
+                        type: boolean
+                      enabled:
+                        description: Enable MLflow integration.
+                        type: boolean
+                      entityDfMaxRows:
+                        description: |-
+                          Maximum number of entity DataFrame rows to save as an MLflow artifact.
+                          DataFrames exceeding this limit are skipped.
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      extraConfig:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          ExtraConfig holds additional MLflow key-value settings written inline into
+                          the mlflow block of feature_store.yaml.
+                        type: object
+                      logOperations:
+                        description: |-
+                          Log feast apply and materialize operations to a separate MLflow experiment.
+                          Defaults to false.
+                        type: boolean
+                      opsExperimentSuffix:
+                        description: |-
+                          Suffix appended to the project name for the operations experiment.
+                          Defaults to "-feast-ops".
+                        type: string
+                      trackingAuth:
+                        description: |-
+                          Authentication method used by Feast pods when calling the MLflow tracking
+                          server.
+                        type: string
+                      trackingUri:
+                        description: |-
+                          MLflow tracking server URI. When omitted, the operator auto-discovers
+                          from the cluster MLflow CR (status.address.url).
+                        type: string
+                      uiUrl:
+                        description: Browser-reachable MLflow UI URL used for hyperlinks
+                          in Feast UI lineage.
+                        type: string
+                    required:
+                    - enabled
+                    type: object
+                    x-kubernetes-validations:
+                    - message: extraConfig must not contain keys that duplicate typed
+                        fields (enabled, tracking_uri, ui_url, tracking_auth, auto_log,
+                        auto_log_entity_df, entity_df_max_rows, log_operations, ops_experiment_suffix);
+                        use the corresponding spec fields instead.
+                      rule: '!has(self.extraConfig) || !(''enabled'' in self.extraConfig)
+                        && !(''tracking_uri'' in self.extraConfig) && !(''ui_url''
+                        in self.extraConfig) && !(''tracking_auth'' in self.extraConfig)
+                        && !(''auto_log'' in self.extraConfig) && !(''auto_log_entity_df''
+                        in self.extraConfig) && !(''entity_df_max_rows'' in self.extraConfig)
+                        && !(''log_operations'' in self.extraConfig) && !(''ops_experiment_suffix''
+                        in self.extraConfig)'
                   openlineage:
                     description: |-
                       OpenLineage enables OpenLineage data lineage tracking for Feast operations.
@@ -8025,6 +8249,10 @@ spec:
                       disableInitContainers:
                         description: Disable the 'feast repo initialization' initContainer
                         type: boolean
+                      initImage:
+                        description: InitImage overrides the image for init containers
+                          (feast-init, feast-apply).
+                        type: string
                       offlineStore:
                         description: OfflineStore configures the offline store service
                         properties:
@@ -8159,6 +8387,7 @@ spec:
                                     - clickhouse
                                     - ray
                                     - oracle
+                                    - hybrid
                                     type: string
                                 required:
                                 - secretRef
@@ -12831,6 +13060,9 @@ spec:
                           type: string
                         type: array
                     type: object
+                  noAuth:
+                    description: NoAuth explicitly disables authentication and authorization.
+                    type: boolean
                   oidc:
                     description: |-
                       OidcAuthz defines the authorization settings for deployments using an Open ID Connect identity provider.
@@ -12855,8 +13087,9 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-validations:
-                - message: One selection required between kubernetes or oidc.
-                  rule: '[has(self.kubernetes), has(self.oidc)].exists_one(c, c)'
+                - message: One selection required between kubernetes, oidc, or noAuth.
+                  rule: '[has(self.kubernetes), has(self.oidc), has(self.noAuth)].exists_one(c,
+                    c)'
               cronJob:
                 description: FeastCronJob defines a CronJob to execute against a Feature
                   Store deployment.
@@ -13525,10 +13758,32 @@ spec:
                         - pytorch_nlp
                         type: string
                     type: object
+                  packaged:
+                    description: FeastPackagedOptions describes a feature repository
+                      packaged in a feature server image.
+                    properties:
+                      featureRepoPath:
+                        description: FeatureRepoPath is the canonical absolute path
+                          to the feature repository in the image.
+                        type: string
+                      image:
+                        description: Image containing the packaged feature repository.
+                        type: string
+                    required:
+                    - featureRepoPath
+                    type: object
+                    x-kubernetes-validations:
+                    - message: FeatureRepoPath must be a canonical absolute, non-root
+                        path without dot segments or repeated separators.
+                      rule: self.featureRepoPath.startsWith('/') && self.featureRepoPath
+                        != '/' && !self.featureRepoPath.contains('//') && !self.featureRepoPath.endsWith('/')
+                        && !self.featureRepoPath.contains('/./') && !self.featureRepoPath.endsWith('/.')
+                        && !self.featureRepoPath.contains('/../') && !self.featureRepoPath.endsWith('/..')
                 type: object
                 x-kubernetes-validations:
-                - message: One selection required between init or git.
-                  rule: '[has(self.git), has(self.init)].exists_one(c, c)'
+                - message: One selection required between init, git, or packaged.
+                  rule: '[has(self.git), has(self.init), has(self.packaged)].exists_one(c,
+                    c)'
               services:
                 description: FeatureStoreServices defines the desired feast services.
                   An ephemeral onlineStore feature server is deployed by default.
@@ -13697,6 +13952,7 @@ spec:
                                 - couchbase.offline
                                 - clickhouse
                                 - ray
+                                - hybrid
                                 type: string
                             required:
                             - secretRef
@@ -17318,6 +17574,10 @@ spec:
                               type: string
                             type: array
                         type: object
+                      noAuth:
+                        description: NoAuth explicitly disables authentication and
+                          authorization.
+                        type: boolean
                       oidc:
                         description: |-
                           OidcAuthz defines the authorization settings for deployments using an Open ID Connect identity provider.
@@ -17342,8 +17602,9 @@ spec:
                         type: object
                     type: object
                     x-kubernetes-validations:
-                    - message: One selection required between kubernetes or oidc.
-                      rule: '[has(self.kubernetes), has(self.oidc)].exists_one(c,
+                    - message: One selection required between kubernetes, oidc, or
+                        noAuth.
+                      rule: '[has(self.kubernetes), has(self.oidc), has(self.noAuth)].exists_one(c,
                         c)'
                   cronJob:
                     description: FeastCronJob defines a CronJob to execute against
@@ -18022,10 +18283,32 @@ spec:
                             - pytorch_nlp
                             type: string
                         type: object
+                      packaged:
+                        description: FeastPackagedOptions describes a feature repository
+                          packaged in a feature server image.
+                        properties:
+                          featureRepoPath:
+                            description: FeatureRepoPath is the canonical absolute
+                              path to the feature repository in the image.
+                            type: string
+                          image:
+                            description: Image containing the packaged feature repository.
+                            type: string
+                        required:
+                        - featureRepoPath
+                        type: object
+                        x-kubernetes-validations:
+                        - message: FeatureRepoPath must be a canonical absolute, non-root
+                            path without dot segments or repeated separators.
+                          rule: self.featureRepoPath.startsWith('/') && self.featureRepoPath
+                            != '/' && !self.featureRepoPath.contains('//') && !self.featureRepoPath.endsWith('/')
+                            && !self.featureRepoPath.contains('/./') && !self.featureRepoPath.endsWith('/.')
+                            && !self.featureRepoPath.contains('/../') && !self.featureRepoPath.endsWith('/..')
                     type: object
                     x-kubernetes-validations:
-                    - message: One selection required between init or git.
-                      rule: '[has(self.git), has(self.init)].exists_one(c, c)'
+                    - message: One selection required between init, git, or packaged.
+                      rule: '[has(self.git), has(self.init), has(self.packaged)].exists_one(c,
+                        c)'
                   services:
                     description: FeatureStoreServices defines the desired feast services.
                       An ephemeral onlineStore feature server is deployed by default.
@@ -18196,6 +18479,7 @@ spec:
                                     - couchbase.offline
                                     - clickhouse
                                     - ray
+                                    - hybrid
                                     type: string
                                 required:
                                 - secretRef
