@@ -123,8 +123,9 @@ get-manifests: ## Download component manifests.
 	./hack/scripts/get-manifests.sh
 
 .PHONY: verify-rbac
-verify-rbac: manifests ## Verify module operator RBAC covers all operand permissions.
-	@go run ./hack/verify-rbac config/rbac/role.yaml config/manifests/feastoperator/rbac/role.yaml
+verify-rbac: manifests ## Verify module operator RBAC covers all operand permissions and chart is in sync.
+	@go run ./hack/verify-rbac config/rbac/role.yaml config/manifests/feastoperator/rbac/role.yaml \
+		config/chart/templates/rbac.authorization.k8s.io_v1_clusterrole.yaml opendatahub-feast-manager-role
 
 ##@ Build
 
