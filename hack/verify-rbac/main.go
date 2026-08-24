@@ -52,6 +52,32 @@ func loadClusterRole(path string) (*rbacv1.ClusterRole, error) {
 	return role, nil
 }
 
+// loadClusterRoleByName parses a multi-document YAML file and returns the
+// ClusterRole matching the given name. Returns an error if not found.
+func loadClusterRoleByName(path, name string) (*rbacv1.ClusterRole, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	docs := strings.Split(string(data), "\n---\n")
+	for _, doc := range docs {
+		doc = strings.TrimSpace(doc)
+		if doc == "" {
+			continue
+		}
+		role := &rbacv1.ClusterRole{}
+		if err := yaml.Unmarshal([]byte(doc), role); err != nil {
+			continue
+		}
+		if role.Name == name {
+			return role, nil
+		}
+	}
+
+	return nil, fmt.Errorf("ClusterRole %q not found in %s", name, path)
+}
+
 // extractPermissions flattens a ClusterRole into a set of (apiGroup, resource, verb) tuples.
 // Rules with resourceNames are expanded without the name constraint since the module operator
 // grants broader (unscoped) access.
@@ -70,8 +96,8 @@ func extractPermissions(role *rbacv1.ClusterRole) map[permission]struct{} {
 }
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s <module-operator-role.yaml> <operand-role.yaml>\n", os.Args[0])
+	if len(os.Args) < 3 || len(os.Args) > 5 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <module-operator-role.yaml> <operand-role.yaml> [<chart-clusterrole.yaml> <role-name>]\n", os.Args[0])
 		os.Exit(2)
 	}
 
@@ -100,11 +126,46 @@ func main() {
 		}
 	}
 
-	if len(missing) == 0 {
-		fmt.Println("OK: module operator RBAC covers all operand permissions.")
-		os.Exit(0)
+	if len(missing) > 0 {
+		printMissing("module operator RBAC", "the operand", missing)
+		fmt.Fprintf(os.Stderr, "\nAdd the missing permissions to the kubebuilder:rbac annotations in:\n")
+		fmt.Fprintf(os.Stderr, "  internal/controller/feastoperator/feastoperator_controller.go\n")
+		fmt.Fprintf(os.Stderr, "Then run: make manifests\n")
+		os.Exit(1)
 	}
 
+	fmt.Println("OK: module operator RBAC covers all operand permissions.")
+
+	if len(os.Args) == 5 {
+		chartPath := os.Args[3]
+		roleName := os.Args[4]
+
+		chartRole, err := loadClusterRoleByName(chartPath, roleName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		chartPerms := extractPermissions(chartRole)
+
+		var chartMissing []permission
+		for p := range modulePerms {
+			if _, ok := chartPerms[p]; !ok {
+				chartMissing = append(chartMissing, p)
+			}
+		}
+
+		if len(chartMissing) > 0 {
+			printMissing(fmt.Sprintf("chart ClusterRole %q", roleName), "the source role", chartMissing)
+			fmt.Fprintf(os.Stderr, "\nRegenerate the chart with: make helm\n")
+			os.Exit(1)
+		}
+
+		fmt.Printf("OK: chart ClusterRole %q is in sync with the source role.\n", roleName)
+	}
+}
+
+func printMissing(target, source string, missing []permission) {
 	sort.Slice(missing, func(i, j int) bool {
 		if missing[i].APIGroup != missing[j].APIGroup {
 			return missing[i].APIGroup < missing[j].APIGroup
@@ -115,7 +176,7 @@ func main() {
 		return missing[i].Verb < missing[j].Verb
 	})
 
-	fmt.Fprintf(os.Stderr, "FAIL: module operator RBAC is missing %d permission(s) required by the operand:\n\n", len(missing))
+	fmt.Fprintf(os.Stderr, "FAIL: %s is missing %d permission(s) required by %s:\n\n", target, len(missing), source)
 
 	grouped := map[string]map[string][]string{}
 	for _, p := range missing {
@@ -138,9 +199,4 @@ func main() {
 			delete(grouped, key)
 		}
 	}
-
-	fmt.Fprintf(os.Stderr, "\nAdd the missing permissions to the kubebuilder:rbac annotations in:\n")
-	fmt.Fprintf(os.Stderr, "  internal/controller/feastoperator/feastoperator_controller.go\n")
-	fmt.Fprintf(os.Stderr, "Then run: make manifests\n")
-	os.Exit(1)
 }
