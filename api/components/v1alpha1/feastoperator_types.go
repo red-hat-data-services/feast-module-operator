@@ -17,8 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 )
 
 const (
@@ -36,6 +37,43 @@ type FeastOperatorSpec struct {
 	// the issuer URL is written to params.env before kustomize renders manifests.
 	// +optional
 	OIDC *common.GatewayOIDCSpec `json:"oidc,omitempty"`
+
+	// Capabilities declares the desired state for Feature Store and Data Registry.
+	// When present, these values are authoritative and override process-level
+	// environment defaults. When absent, the module falls back to startup
+	// configuration (env vars) for backward compatibility.
+	// +optional
+	Capabilities *CapabilitiesSpec `json:"capabilities,omitempty"`
+}
+
+// CapabilitiesSpec declares per-capability management state. Both fields are
+// required when the block is present — the handler must write the full block
+// or omit it entirely.
+// +kubebuilder:object:generate=true
+type CapabilitiesSpec struct {
+	// FeatureStore controls standard FeatureStore workload reconciliation.
+	FeatureStore CapabilitySpec `json:"featureStore"`
+
+	// DataRegistry controls Data Registry workload reconciliation and
+	// namespace provisioning. The namespace is always rhoai-data-registry.
+	DataRegistry CapabilitySpec `json:"dataRegistry"`
+}
+
+// CapabilityManagementState restricts the allowed management states for capability
+// toggles to Managed or Removed. Unlike the platform's general ManagementState,
+// Unmanaged and Force are not valid for capability toggles.
+// +kubebuilder:validation:Enum=Managed;Removed
+type CapabilityManagementState string
+
+const (
+	CapabilityManaged CapabilityManagementState = "Managed"
+	CapabilityRemoved CapabilityManagementState = "Removed"
+)
+
+// CapabilitySpec holds the management state for a single capability.
+// +kubebuilder:object:generate=true
+type CapabilitySpec struct {
+	ManagementState CapabilityManagementState `json:"managementState"`
 }
 
 // FeastOperatorStatus defines the observed state of FeastOperator.

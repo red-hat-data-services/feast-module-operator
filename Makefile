@@ -157,7 +157,12 @@ build-bin: ## Build manager binary only (for Containerfile; run container-prep o
 		go build -ldflags "$(LDFLAGS)" -o "$(BIN_DIR)/$(BIN_NAME)" cmd/main.go
 
 .PHONY: container-prep
-container-prep: manifests generate get-manifests ## On host: regenerate code and fetch manifests before container-build.
+container-prep: manifests generate ## On host: regenerate code and fetch manifests before container-build.
+	@if [ "$(SKIP_GET_MANIFESTS)" = "1" ] || [ -f config/manifests/feastoperator/manager/manager.yaml ]; then \
+		echo "Skipping get-manifests (bundled manifests present or SKIP_GET_MANIFESTS=1)"; \
+	else \
+		$(MAKE) get-manifests; \
+	fi
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
@@ -203,11 +208,34 @@ endif
 .PHONY: deploy-helm
 deploy-helm: ## Deploy controller via Helm chart.
 	@resolved_img="$$(bash ./hack/scripts/resolve-image-ref.sh "$(IMG)")"; \
+		if [ -z "$$resolved_img" ]; then \
+			echo "ERROR: empty image reference (IMG='$(IMG)')" >&2; exit 1; \
+		fi; \
+		if [ -f config/chart/templates/apiextensions.k8s.io_v1_customresourcedefinition.yaml ]; then \
+			echo "ERROR: stale chart has a CRD in templates/; run 'make helm' before deploying." >&2; exit 1; \
+		fi; \
+		helm_extra="$(HELM_EXTRA_ARGS)"; \
+		if $(KUBECTL) get crd feastoperators.components.platform.opendatahub.io >/dev/null 2>&1; then \
+			echo "Protecting the existing FeastOperator CRD during Helm template-to-crds/ migration"; \
+			$(KUBECTL) annotate crd feastoperators.components.platform.opendatahub.io \
+				helm.sh/resource-policy=keep --overwrite || { \
+					echo "ERROR: could not protect the CRD; refusing to upgrade." >&2; exit 1; \
+				}; \
+		fi; \
+		if [ "$(SKIP_HELM_CRDS)" = "1" ] || $(KUBECTL) get crd feastoperators.components.platform.opendatahub.io >/dev/null 2>&1; then \
+			echo "Skipping Helm CRD install (CRD already on cluster or SKIP_HELM_CRDS=1)"; \
+			echo "Applying CRD update from config/crd/bases/ ..."; \
+			$(KUBECTL) apply --server-side --force-conflicts -f config/crd/bases/ || { \
+				echo "ERROR: CRD update failed; refusing to deploy. Run 'make install' first." >&2; exit 1; \
+			}; \
+			helm_extra="$$helm_extra --skip-crds"; \
+		fi; \
 		echo "Deploying image: $$resolved_img"; \
 		$(HELM) upgrade --install $(HELM_RELEASE) config/chart \
 			--namespace $(HELM_NAMESPACE) --create-namespace \
+			--set-string namespace="$(HELM_NAMESPACE)" \
 			--set-string image.fullRef="$$resolved_img" \
-			--wait --timeout 5m $(HELM_EXTRA_ARGS)
+			--wait --timeout 5m $$helm_extra
 
 .PHONY: push-openshift-image
 push-openshift-image: ## Push a built image to the OpenShift internal registry and print the pullspec.
@@ -217,9 +245,20 @@ push-openshift-image: ## Push a built image to the OpenShift internal registry a
 deploy-openshift: ## Build locally, push to OpenShift internal registry, and deploy via Helm.
 	$(MAKE) container-build
 	@img="$$(bash ./hack/scripts/push-openshift-image.sh "$(IMG)" "$(HELM_NAMESPACE)" "$(MODULE_NAME)")"; \
+		if [ -z "$$img" ]; then \
+			echo "ERROR: image push failed — empty pullspec." >&2; \
+			echo "  Registry route missing? Try: make deploy-external-img IMG=<pushed-image>" >&2; \
+			exit 1; \
+		fi; \
 		echo "Using image: $$img"; \
 		$(MAKE) helm; \
 		$(MAKE) deploy-helm IMG="$$img"
+
+.PHONY: deploy-external-img
+deploy-external-img: helm ## Deploy IMG as-is (skip OpenShift internal registry push).
+	@test -n "$(IMG)" || (echo "ERROR: set IMG to an image the cluster can pull (e.g. quay.io/... or ttl.sh/...)" >&2; exit 1)
+	@echo "Deploying external image: $(IMG)"
+	$(MAKE) deploy-helm IMG="$(IMG)"
 
 .PHONY: undeploy-helm
 undeploy-helm: ## Undeploy controller installed via Helm.

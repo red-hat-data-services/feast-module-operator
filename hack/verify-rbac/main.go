@@ -118,6 +118,20 @@ func main() {
 
 	modulePerms := extractPermissions(moduleRole)
 	operandPerms := extractPermissions(operandRole)
+	// The bundled role is patched beyond its pinned Feast source to support
+	// Data Registry namespace reconciliation. Catch a manifest refresh that
+	// accidentally drops either permission.
+	var missingNamespacePerms []permission
+	for _, verb := range []string{"create", "patch"} {
+		p := permission{APIGroup: "", Resource: "namespaces", Verb: verb}
+		if _, ok := operandPerms[p]; !ok {
+			missingNamespacePerms = append(missingNamespacePerms, p)
+		}
+	}
+	if len(missingNamespacePerms) > 0 {
+		printMissing("bundled operand RBAC", "Data Registry namespace reconciliation", missingNamespacePerms)
+		os.Exit(1)
+	}
 
 	var missing []permission
 	for p := range operandPerms {
