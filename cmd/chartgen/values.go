@@ -86,7 +86,7 @@ type Values struct {
 	// provisioning until an administrator explicitly acknowledges them.
 	// Empty by default; populated by the ODH operator when a breaking
 	// change requires admin intervention before provisioning proceeds.
-	UpgradeGates map[string]string `json:"upgradeGates,omitempty" jsonschema:"nullable"`
+	UpgradeGates map[string]string `json:"upgradeGates" jsonschema:"nullable"`
 }
 
 // ImageSpec describes a container image.
@@ -144,6 +144,7 @@ func DefaultValues() Values {
 			"platform-name":    "OpenDataHub",
 			"platform-version": "unknown",
 		},
+		UpgradeGates: map[string]string{},
 	}
 }
 

@@ -38,6 +38,7 @@ const (
 	defaultChartName   = "opendatahub-feast-operator"
 	defaultChartVer    = "0.1.0"
 	templatesDirName   = "templates"
+	crdsDirName        = "crds"
 	chartYAMLFilename  = "Chart.yaml"
 	helpersTplFilename = "_helpers.tpl"
 	valuesYAMLFilename = "values.yaml"
@@ -90,8 +91,12 @@ func run(
 
 	// Create output directories
 	templatesDir := filepath.Join(outputDir, templatesDirName)
+	crdsDir := filepath.Join(outputDir, crdsDirName)
 	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
 		return fmt.Errorf("creating templates directory: %w", err)
+	}
+	if err := os.MkdirAll(crdsDir, 0o755); err != nil {
+		return fmt.Errorf("creating crds directory: %w", err)
 	}
 
 	// Write Chart.yaml (only if missing)
@@ -120,9 +125,19 @@ func run(
 	// Write grouped resource templates
 	for resourceGVK, res := range groups {
 		filename := gvkToFilename(resourceGVK)
-		path := filepath.Join(templatesDir, filename)
+		targetDir := templatesDir
+		if isCRD(resourceGVK) {
+			targetDir = crdsDir
+		}
+		path := filepath.Join(targetDir, filename)
 
-		content, err := renderGroup(resourceGVK, res)
+		var content string
+		var err error
+		if isCRD(resourceGVK) {
+			content, err = renderPlainGroup(res)
+		} else {
+			content, err = renderGroup(resourceGVK, res)
+		}
 		if err != nil {
 			return fmt.Errorf("rendering %s: %w", filename, err)
 		}
@@ -189,6 +204,10 @@ func groupByGVK(resources []unstructured.Unstructured) map[schema.GroupVersionKi
 	}
 
 	return groups
+}
+
+func isCRD(resourceGVK schema.GroupVersionKind) bool {
+	return resourceGVK.Group == "apiextensions.k8s.io" && resourceGVK.Kind == "CustomResourceDefinition"
 }
 
 // gvkToFilename converts a GVK to a template filename.

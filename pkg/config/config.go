@@ -44,6 +44,9 @@ const (
 	KeyPprofEnabled       = "controller.pprof.enabled"
 	KeyPprofBindAddr      = "controller.pprof.bind-address"
 
+	KeyFeatureStoreEnabled = "feature-store-enabled"
+	KeyDataRegistryEnabled = "data-registry-enabled"
+
 	DefaultApplicationsNS  = "opendatahub"
 	DefaultPlatformName    = "unknown"
 	DefaultPlatformVersion = "unknown"
@@ -54,6 +57,9 @@ const (
 	DefaultLeaderElectID      = "opendatahub-feast-operator-lock"
 	DefaultZapLevel           = "info"
 	DefaultPprofEnabled       = false
+
+	DefaultFeatureStoreEnabled = true
+	DefaultDataRegistryEnabled = true
 
 	// ConfigPathEnvVar is the environment variable that points to the mounted
 	// ConfigMap directory (or a single config file).
@@ -86,6 +92,8 @@ type Config struct {
 	ApplicationsNamespace string           `mapstructure:"applications-namespace"`
 	PlatformName          string           `mapstructure:"platform-name"`
 	PlatformVersion       string           `mapstructure:"platform-version"`
+	FeatureStoreEnabled   bool             `mapstructure:"feature-store-enabled"`
+	DataRegistryEnabled   bool             `mapstructure:"data-registry-enabled"`
 	Controller            ControllerConfig `mapstructure:"controller"`
 }
 
@@ -185,6 +193,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault(KeyApplicationsNS, DefaultApplicationsNS)
 	v.SetDefault(KeyPlatformName, DefaultPlatformName)
 	v.SetDefault(KeyPlatformVersion, DefaultPlatformVersion)
+	v.SetDefault(KeyFeatureStoreEnabled, DefaultFeatureStoreEnabled)
+	v.SetDefault(KeyDataRegistryEnabled, DefaultDataRegistryEnabled)
 
 	v.SetDefault(KeyMetricsBindAddr, DefaultMetricsBindAddr)
 	v.SetDefault(KeyHealthBindAddr, DefaultHealthBindAddr)

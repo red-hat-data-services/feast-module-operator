@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -59,8 +60,8 @@ import (
 // +kubebuilder:rbac:groups=route.openshift.io,resources=routes,verbs=get;list;watch;create;delete;update
 // +kubebuilder:rbac:groups=config.openshift.io,resources=apiservers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=sparkoperator.k8s.io,resources=sparkapplications,verbs=get;create;delete
-// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;update;watch
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete;deletecollection
 // +kubebuilder:rbac:groups="",resources=pods/exec,verbs=create
 // +kubebuilder:rbac:groups="",resources=pods/log,verbs=get
@@ -115,6 +116,8 @@ func NewReconciler(
 		WithAction(m.initialize).
 		WithAction(m.upgradeIfNeeded).
 		WithAction(m.setKustomizedParams).
+		WithAction(m.reconcileDataRegistryNamespace).
+		WithAction(m.reconcileCapabilitiesConfigMap).
 		WithAction(releases.NewAction()).
 		WithAction(m.reconcilePlatformVersion).
 		WithAction(kustomize.NewAction(
@@ -126,6 +129,7 @@ func NewReconciler(
 			deploy.WithCache(),
 			deploy.WithApplyOrder(),
 		)).
+		WithAction(m.triggerCapabilityRolloutIfNeeded).
 		WithAction(deployments.NewAction()).
 		WithAction(gc.NewAction(
 			gc.InNamespace(cfg.ApplicationsNamespace),
@@ -147,8 +151,20 @@ func NewReconciler(
 
 // cleanupClusterResources removes cluster-scoped resources (ClusterRoles, ClusterRoleBindings)
 // that cannot use ownerReferences for garbage collection.
+//
+// This finalizer always runs to completion when the CR is deleted. It does NOT
+// defer based on capability state — the DSC controller is responsible for
+// recreating the FeastOperator CR with the correct capabilities after a
+// delete+create cycle. Deferring cleanup when capabilities are still Managed
+// creates a deadlock: the CR is being deleted so its spec.capabilities will
+// never change, but the finalizer waits for them to become Removed.
 func (m *Module) cleanupClusterResources(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
 	log := logf.FromContext(ctx)
+
+	if _, ok := rr.Instance.(*componentApi.FeastOperator); !ok {
+		return fmt.Errorf("instance is not a FeastOperator")
+	}
+
 	listOpts := []client.ListOption{
 		client.MatchingLabels{
 			labels.ODH.Component(componentName): labels.True,
@@ -156,6 +172,26 @@ func (m *Module) cleanupClusterResources(ctx context.Context, rr *odhtypes.Recon
 	}
 
 	log.Info("Cleaning up cluster-scoped resources for FeastOperator")
+
+	// The platform may delete the CR immediately when both capabilities become
+	// Removed, without a normal reconcile that clears the namespace label.
+	// Keep the namespace and its data, but stop advertising an enabled registry.
+	if err := m.removeDataRegistryLabel(ctx, rr); err != nil {
+		return err
+	}
+
+	cm := &corev1.ConfigMap{}
+	err := rr.Client.Get(ctx, client.ObjectKey{
+		Name:      capabilitiesConfigMapName,
+		Namespace: m.cfg.ApplicationsNamespace,
+	}, cm)
+	if err == nil {
+		if err := rr.Client.Delete(ctx, cm); client.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("failed to delete capabilities ConfigMap %s: %w", capabilitiesConfigMapName, err)
+		}
+	} else if !k8serr.IsNotFound(err) {
+		return fmt.Errorf("failed to get capabilities ConfigMap %s: %w", capabilitiesConfigMapName, err)
+	}
 
 	crbList := &rbacv1.ClusterRoleBindingList{}
 	if err := rr.Client.List(ctx, crbList, listOpts...); err != nil {

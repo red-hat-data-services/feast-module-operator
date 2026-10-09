@@ -31,4 +31,5 @@ var (
 	MutatingWebhookConfiguration   = clustergvk.MutatingWebhookConfiguration
 	ValidatingWebhookConfiguration = clustergvk.ValidatingWebhookConfiguration
 	CertManagerCertificate         = clustergvk.CertManagerCertificate
+	CustomResourceDefinition       = clustergvk.CustomResourceDefinition
 )

@@ -39,7 +39,7 @@ const (
 	yamlFieldData               = "data:"
 	yamlFieldMetadata           = "metadata:"
 
-	tplReleaseNamespace   = "namespace: {{ .Values.namespace }}"
+	tplReleaseNamespace   = "namespace: {{ default .Release.Namespace .Values.namespace }}"
 	tplServiceAccountName = `{{ default (include "chart.fullname" .) .Values.serviceAccount.name }}`
 
 	annotationCertManagerInjectCAFrom = "cert-manager.io/inject-ca-from"
@@ -194,6 +194,24 @@ func transformWebhook(obj *unstructured.Unstructured) (string, error) {
 	raw = replaceWebhookNamespace(raw)
 
 	return raw, nil
+}
+
+// renderPlainGroup renders resources without Helm templating (for chart crds/).
+func renderPlainGroup(resources []unstructured.Unstructured) (string, error) {
+	var parts []string
+
+	for i := range resources {
+		stripLabels(&resources[i])
+
+		transformed, err := transformGeneric(&resources[i])
+		if err != nil {
+			return "", fmt.Errorf("rendering %s/%s: %w", resources[i].GetKind(), resources[i].GetName(), err)
+		}
+
+		parts = append(parts, transformed)
+	}
+
+	return strings.Join(parts, "\n---\n"), nil
 }
 
 // transformCertificate replaces hardcoded namespace references in

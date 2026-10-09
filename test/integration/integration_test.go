@@ -138,6 +138,8 @@ func runTestMain(m *testing.M) int {
 		PlatformVersion:       operatorCfgData[moduleconfig.KeyPlatformVersion],
 		ApplicationsNamespace: testNamespace,
 		ManifestsPath:         support.MustProjectFile("config", "manifests"),
+		FeatureStoreEnabled:   moduleconfig.DefaultFeatureStoreEnabled,
+		DataRegistryEnabled:   moduleconfig.DefaultDataRegistryEnabled,
 	}
 	operatorReleaseVersion = moduleCfg.Release().Version.String()
 
@@ -249,6 +251,7 @@ func TestFeastOperator(t *testing.T) {
 	})
 
 	t.Run("foundation", foundation.Execute)
+	t.Run("capabilities", (&capabilityTests{feastTest: suite}).Execute)
 }
 
 func waitForDeleted(t *testing.T, obj client.Object) {

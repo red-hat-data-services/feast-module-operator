@@ -88,6 +88,7 @@ FeastOperator CR (v1) created by ODH Operator
 |---------------------|---------|
 | `RELATED_IMAGE_FEAST_OPERATOR` | feast-operator controller-manager image |
 | `RELATED_IMAGE_FEATURE_SERVER` | feast feature-server sidecar image |
+| `RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE` | ODH/RHOAI kube-rbac-proxy image for feast-operator workload sidecars |
 
 ## License
 
