@@ -25,9 +25,9 @@ rules:
   - create
   - get
   - list
-  - patch
   - update
   - watch
+  - patch
 - apiGroups:
   - ""
   resources:
@@ -125,6 +125,28 @@ rules:
   - update
   - watch
 - apiGroups:
+  - dataregistry.opendatahub.io
+  resources:
+  - connections
+  verbs:
+  - use
+- apiGroups:
+  - dataregistry.opendatahub.io
+  resources:
+  - generic-tables
+  - namespaces
+  - registries
+  - tables
+  - volumes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - feast.dev
   resources:
   - featurestores
@@ -193,12 +215,15 @@ rules:
   - rbac.authorization.k8s.io
   resources:
   - clusterrolebindings
+  - rolebindings
+  - roles
   verbs:
   - create
   - delete
   - get
   - list
   - update
+  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -221,48 +246,6 @@ rules:
   verbs:
   - delete
   - update
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - rolebindings
-  - roles
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - dataregistry.opendatahub.io
-  resources:
-  - registries
-  - namespaces
-  - tables
-  - volumes
-  - generic-tables
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - dataregistry.opendatahub.io
-  resources:
-  - connections
-  verbs:
-  - use
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resourceNames:
-  - system:auth-delegator
-  resources:
-  - clusterroles
-  verbs:
-  - bind
 - apiGroups:
   - route.openshift.io
   resources:
