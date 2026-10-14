@@ -38,8 +38,8 @@ const (
 
 // imageParamMap matches the monolith's imageParamMap.
 var imageParamMap = map[string]string{
-	"RELATED_IMAGE_FEAST_OPERATOR":           "RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE",
-	"RELATED_IMAGE_FEATURE_SERVER":           "RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE",
+	"RELATED_IMAGE_FEAST_OPERATOR":            "RELATED_IMAGE_ODH_FEAST_OPERATOR_IMAGE",
+	"RELATED_IMAGE_FEATURE_SERVER":            "RELATED_IMAGE_ODH_FEATURE_SERVER_IMAGE",
 	"RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE": "RELATED_IMAGE_ODH_KUBE_RBAC_PROXY_IMAGE",
 }
 
@@ -49,19 +49,26 @@ type Module struct {
 	manifestInfo odhtypes.ManifestInfo
 }
 
+// OverlayFor returns the manifests overlay selected for the given platform
+// type: RHOAI platform types use the RHOAI overlay, everything else (ODH,
+// unknown) falls back to the ODH overlay.
+func OverlayFor(platformType string) string {
+	switch common.Platform(platformType) {
+	case cluster.SelfManagedRhoai:
+		return overlayRhoai
+	case cluster.ManagedRhoai:
+		return overlayRhoai
+	default:
+		return overlayODH
+	}
+}
+
 // NewModule creates a Module with one-shot computed state.
 func NewModule(cfg *moduleconfig.Config) (*Module, error) {
-	// Select overlay based on platform.
-	overlay := overlayODH
-	platform := common.Platform(cfg.PlatformName)
-	if platform == cluster.SelfManagedRhoai || platform == cluster.ManagedRhoai {
-		overlay = overlayRhoai
-	}
-
 	mi := odhtypes.ManifestInfo{
 		Path:       cfg.ManifestsPath,
 		ContextDir: componentName,
-		SourcePath: overlay,
+		SourcePath: OverlayFor(cfg.PlatformType),
 	}
 
 	// Apply image params once at startup (equivalent to Init in the monolith).

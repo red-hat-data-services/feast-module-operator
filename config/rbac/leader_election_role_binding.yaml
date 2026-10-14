@@ -3,12 +3,12 @@ kind: RoleBinding
 metadata:
   labels:
     app.kubernetes.io/name: opendatahub-feast-operator
-  name: leader-election-rolebinding
+  name: opendatahub-feast-leader-election-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: leader-election-role
+  name: opendatahub-feast-leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: operator
+  name: opendatahub-feast-operator
   namespace: system

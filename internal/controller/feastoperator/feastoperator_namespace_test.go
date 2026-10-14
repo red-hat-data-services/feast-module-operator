@@ -145,7 +145,7 @@ func TestReconcileDataRegistryNamespaceRemovesLabelWhenDisabled(t *testing.T) {
 			Name: dataRegistryNamespaceName,
 			Labels: map[string]string{
 				dataRegistryEnabledLabelKey: dataRegistryEnabledLabelValue,
-				"other-label":              "keep-me",
+				"other-label":               "keep-me",
 			},
 		},
 	}

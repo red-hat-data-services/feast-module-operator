@@ -55,8 +55,12 @@ const (
 	annotationType         = "platform.opendatahub.io/type"
 	annotationVersion      = "platform.opendatahub.io/version"
 
-	operatorConfigMapName = "opendatahub-feast-config"
-	moduleCRDName         = "feastoperators.components.platform.opendatahub.io"
+	moduleCRDName = "feastoperators.components.platform.opendatahub.io"
+
+	// platformTypeEnvVar is the env var that carries the platform type on the
+	// manager Deployment (bound to the platform-type config key), injectable
+	// through the chart's extraEnvs knob.
+	platformTypeEnvVar = "ODH_MODULE_OPERATOR_PLATFORM_TYPE"
 
 	operatorDeployName         = "opendatahub-feast-operator"
 	workloadDeployName         = "feast-operator-controller-manager"
@@ -144,6 +148,14 @@ func TestFeastOperator(t *testing.T) {
 	// Gate: if the operator is not running, fail immediately — don't
 	// let subsequent tests hang waiting for resources that won't appear.
 	eventuallyDeploymentReady(t, foundation.operatorDeploy)
+
+	// Create the module CR up front (when not already present) so that
+	// subtests observing the deployed workload don't race its creation.
+	if suite.createdByTest {
+		suite.module.ResourceVersion = ""
+		g := NewWithT(t)
+		g.Expect(k8sClient.Create(ctx, suite.module)).To(Succeed())
+	}
 
 	t.Run("foundation", foundation.Execute)
 }

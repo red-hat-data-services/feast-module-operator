@@ -4,13 +4,13 @@ metadata:
   labels:
 
     app.kubernetes.io/name: opendatahub-feast-operator
-  name: system
+  name: opendatahub-feast-system
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: operator
-  namespace: system
+  name: opendatahub-feast-operator
+  namespace: opendatahub-feast-system
   labels:
 
     app.kubernetes.io/name: opendatahub-feast-operator
@@ -137,6 +137,6 @@ spec:
         emptyDir: {}
       - name: config
         configMap:
-          name: config
-      serviceAccountName: operator
+          name: odh-data-config
+      serviceAccountName: opendatahub-feast-operator
       terminationGracePeriodSeconds: 10

@@ -19,6 +19,7 @@ package config
 import (
 	"os"
 	"testing"
+	"testing/fstest"
 
 	. "github.com/onsi/gomega"
 )
@@ -54,4 +55,43 @@ func TestLoadCapabilityTogglesUnsetEnvUsesDefaults(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(cfg.FeatureStoreEnabled).To(BeTrue())
 	g.Expect(cfg.DataRegistryEnabled).To(BeTrue())
+}
+
+func TestLoadPlatformVersionFromEnv(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Setenv(EnvPrefix+"_PLATFORM_VERSION", "2.22.0")
+
+	cfg, err := LoadFromFS(nil)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cfg.PlatformVersion).To(Equal("2.22.0"))
+}
+
+// The mounted odh-data-config ConfigMap exposes the platform version under
+// the platform-managed platformVersion key (camelCase), matching what the
+// opendatahub operator creates.
+func TestLoadPlatformVersionFromMountedConfig(t *testing.T) {
+	g := NewWithT(t)
+
+	fsys := fstest.MapFS{
+		KeyPlatformVersion: &fstest.MapFile{Data: []byte("2.22.0")},
+	}
+
+	cfg, err := LoadFromFS(fsys)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cfg.PlatformVersion).To(Equal("2.22.0"))
+}
+
+func TestLoadPlatformVersionEnvOverridesMountedConfig(t *testing.T) {
+	g := NewWithT(t)
+
+	t.Setenv(EnvPrefix+"_PLATFORM_VERSION", "2.23.0")
+
+	fsys := fstest.MapFS{
+		KeyPlatformVersion: &fstest.MapFile{Data: []byte("2.22.0")},
+	}
+
+	cfg, err := LoadFromFS(fsys)
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(cfg.PlatformVersion).To(Equal("2.23.0"))
 }

@@ -42,7 +42,7 @@ help: ## Display this help.
 
 .PHONY: manifests
 manifests: ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) rbac:roleName=opendatahub-feast-manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
 generate: ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -67,7 +67,7 @@ test: manifests generate fmt vet ## Run unit tests.
 
 .PHONY: test-integration-run
 test-integration-run: ## Run integration tests only (cluster must be prepared).
-	INTEGRATION_TEST_NAMESPACE="$(INTEGRATION_TEST_NAMESPACE)" go test -ldflags "$(LDFLAGS)" ./test/integration/ -tags=integration -v -timeout 5m -failfast
+	INTEGRATION_TEST_NAMESPACE="$(INTEGRATION_TEST_NAMESPACE)" go test -count=1 -ldflags "$(LDFLAGS)" ./test/integration/ -tags=integration -v -timeout 5m -failfast
 
 .PHONY: test-integration-setup
 test-integration-setup: manifests generate ## Prepare the cluster for integration tests.
@@ -75,19 +75,18 @@ test-integration-setup: manifests generate ## Prepare the cluster for integratio
 	$(MAKE) install
 
 .PHONY: test-integration
-test-integration: test-integration-setup test-integration-run ## Run integration tests (prepare cluster, then run tests).
+test-integration: test-integration-setup test-integration-run ## Run integration tests (prepare cluster, then run tests). ODH_PLATFORM_TYPE=odh|rhoai|managed-rhoai
 
 .PHONY: test-e2e-run
 test-e2e-run: ## Run e2e tests only (operator must already be deployed).
-	OPERATOR_NAMESPACE="$(OPERATOR_NAMESPACE)" go test -ldflags "$(LDFLAGS)" ./test/e2e/ -tags=e2e -v -timeout 5m -failfast
+	OPERATOR_NAMESPACE="$(OPERATOR_NAMESPACE)" go test -count=1 -ldflags "$(LDFLAGS)" ./test/e2e/ -tags=e2e -v -timeout 5m -failfast
 
 .PHONY: test-e2e-setup
 test-e2e-setup: ## Prepare the cluster for e2e tests.
 	@:
 
 .PHONY: test-e2e
-test-e2e: test-e2e-cleanup test-e2e-setup deploy-helm test-e2e-run ## Run e2e tests (clean, prepare, deploy, then run).
-
+test-e2e: test-e2e-cleanup test-e2e-setup deploy-helm test-e2e-run ## Run e2e tests (clean, prepare, deploy, then run). ODH_PLATFORM_TYPE=odh|rhoai|managed-rhoai
 .PHONY: test-integration-cleanup
 test-integration-cleanup: ## Clean up integration test resources from the cluster.
 	./hack/scripts/cleanup-integration.sh "$(INTEGRATION_TEST_NAMESPACE)"
@@ -190,6 +189,33 @@ OPERATOR_NAMESPACE ?= $(HELM_NAMESPACE)
 INTEGRATION_TEST_NAMESPACE ?= integration-test
 HELM_EXTRA_ARGS ?=
 
+# Friendly platform type names, mapped to the common.Platform values the
+# operator compares against. Selects the manifests overlay (ODH vs RHOAI)
+# for both integration tests (env var) and e2e/deploys (chart extraEnvs),
+# and the manifest source repo in hack/scripts/get-manifests.sh.
+ODH_PLATFORM_TYPE ?= # odh | rhoai | managed-rhoai
+
+# Shared with hack/scripts/get-manifests.sh so a single variable drives both
+# the overlay selection and the manifest source repo.
+export ODH_PLATFORM_TYPE
+
+ifneq ($(ODH_PLATFORM_TYPE),)
+ifeq ($(ODH_PLATFORM_TYPE),odh)
+ODH_PLATFORM_TYPE_VALUE := OpenDataHub
+else ifeq ($(ODH_PLATFORM_TYPE),rhoai)
+ODH_PLATFORM_TYPE_VALUE := OpenShift AI Self-Managed
+else ifeq ($(ODH_PLATFORM_TYPE),managed-rhoai)
+ODH_PLATFORM_TYPE_VALUE := OpenShift AI Cloud Service
+else
+$(error invalid ODH_PLATFORM_TYPE '$(ODH_PLATFORM_TYPE)': expected odh, rhoai or managed-rhoai)
+endif
+endif
+
+ifneq ($(ODH_PLATFORM_TYPE_VALUE),)
+ODH_PLATFORM_TYPE_HELM_ARGS := --set-string 'extraEnvs.ODH_MODULE_OPERATOR_PLATFORM_TYPE=$(ODH_PLATFORM_TYPE_VALUE)'
+export ODH_MODULE_OPERATOR_PLATFORM_TYPE := $(ODH_PLATFORM_TYPE_VALUE)
+endif
+
 .PHONY: helm
 helm: manifests generate ## Generate Helm chart from kustomize output.
 	rm -rf config/chart
@@ -235,7 +261,7 @@ deploy-helm: ## Deploy controller via Helm chart.
 			--namespace $(HELM_NAMESPACE) --create-namespace \
 			--set-string namespace="$(HELM_NAMESPACE)" \
 			--set-string image.fullRef="$$resolved_img" \
-			--wait --timeout 5m $$helm_extra
+			--wait --timeout 5m $$helm_extra $(ODH_PLATFORM_TYPE_HELM_ARGS)
 
 .PHONY: push-openshift-image
 push-openshift-image: ## Push a built image to the OpenShift internal registry and print the pullspec.

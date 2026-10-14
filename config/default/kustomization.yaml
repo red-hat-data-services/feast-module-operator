@@ -1,7 +1,5 @@
 namespace: opendatahub-feast-system
 
-namePrefix: opendatahub-feast-
-
 resources:
 - ../crd
 - ../rbac
