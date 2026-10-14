@@ -65,7 +65,11 @@ const (
 	annotationInstanceUID  = "platform.opendatahub.io/instance.uid"
 	annotationType         = "platform.opendatahub.io/type"
 	annotationVersion      = "platform.opendatahub.io/version"
-	moduleCRDName          = "feastoperators.components.platform.opendatahub.io"
+
+	// testPlatformVersion is the platform version the test publishes in the
+	// platform config ConfigMap, emulating the ODH platform operator.
+	testPlatformVersion = "2.22.0"
+	moduleCRDName       = "feastoperators.components.platform.opendatahub.io"
 )
 
 var (
@@ -73,8 +77,8 @@ var (
 	cancel                 context.CancelFunc
 	k8sClient              client.Client
 	k                      *k8sm.Matcher
-	operatorCfgData        map[string]string
 	operatorReleaseVersion string
+	operatorPlatformType   string
 	testScheme             = runtime.NewScheme()
 )
 
@@ -130,16 +134,45 @@ func runTestMain(m *testing.M) int {
 	viper.Set("rhai-applications-namespace", testNamespace)
 	cluster.SetRHAIApplicationNamespace(testNamespace)
 
-	operatorCfgData = support.MustReadConfigMapData(
-		support.MustProjectFile("config", "manager", "configmap.yaml"))
+	// Emulate the manager Deployment: the operator configuration is driven
+	// by ODH_MODULE_OPERATOR_* env vars. The platform type is inherited from
+	// the environment when injected (ODH_MODULE_OPERATOR_PLATFORM_TYPE);
+	// the remaining env vars mirror those set on the manager container.
+	// Loading through moduleconfig.Load exercises the same env binding the
+	// real operator uses, so an injected platform type genuinely drives
+	// manifest selection.
+	_ = os.Setenv("ODH_MODULE_OPERATOR_MANIFESTS_PATH", support.MustProjectFile("config", "manifests"))
+	_ = os.Setenv("ODH_MODULE_OPERATOR_APPLICATIONS_NAMESPACE", testNamespace)
 
-	moduleCfg := &moduleconfig.Config{
-		PlatformName:          operatorCfgData[moduleconfig.KeyPlatformName],
-		PlatformVersion:       operatorCfgData[moduleconfig.KeyPlatformVersion],
-		ApplicationsNamespace: testNamespace,
-		ManifestsPath:         support.MustProjectFile("config", "manifests"),
-		FeatureStoreEnabled:   moduleconfig.DefaultFeatureStoreEnabled,
-		DataRegistryEnabled:   moduleconfig.DefaultDataRegistryEnabled,
+	// Emulate the ODH platform operator: it publishes the platform version
+	// in a ConfigMap in the applications namespace; the operator records it
+	// in status.releases[name="platform"] through the version handshake.
+	platformCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      feastoperatorcontroller.PlatformConfigCMName,
+			Namespace: testNamespace,
+		},
+		Data: map[string]string{
+			feastoperatorcontroller.PlatformVersionKey: testPlatformVersion,
+		},
+	}
+	if err := directClient.Create(ctx, platformCM); err != nil && !k8serr.IsAlreadyExists(err) {
+		fmt.Fprintf(os.Stderr, "Failed to create platform config ConfigMap: %v\n", err)
+		return 1
+	}
+
+	// Expected platform type: the value a deployment would inject. Kept
+	// separate from moduleCfg so the assertions validate that Load() picked
+	// up the injected value rather than comparing the config against itself.
+	operatorPlatformType = os.Getenv("ODH_MODULE_OPERATOR_PLATFORM_TYPE")
+	if operatorPlatformType == "" {
+		operatorPlatformType = moduleconfig.DefaultPlatformType
+	}
+
+	moduleCfg, err := moduleconfig.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load module config: %v\n", err)
+		return 1
 	}
 	operatorReleaseVersion = moduleCfg.Release().Version.String()
 

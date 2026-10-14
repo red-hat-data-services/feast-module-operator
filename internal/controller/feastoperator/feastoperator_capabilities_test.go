@@ -50,7 +50,7 @@ func newCapabilitiesTestModule(t *testing.T, featureStoreEnabled, dataRegistryEn
 
 	repoRoot := filepath.Join("..", "..", "..")
 	cfg := &moduleconfig.Config{
-		PlatformName:          string(cluster.OpenDataHub),
+		PlatformType:          string(cluster.OpenDataHub),
 		PlatformVersion:       "1.0.0",
 		ManifestsPath:         filepath.Join(repoRoot, "config", "manifests"),
 		ApplicationsNamespace: "test-ns",
@@ -74,7 +74,7 @@ func newCapabilitiesRR(t *testing.T, cl client.Client, obj *componentApi.FeastOp
 		Client:            cl,
 		ManifestsBasePath: filepath.Join(repoRoot, "config", "manifests"),
 		Release: (&moduleconfig.Config{
-			PlatformName:    string(cluster.OpenDataHub),
+			PlatformType:    string(cluster.OpenDataHub),
 			PlatformVersion: "1.0.0",
 		}).Release(),
 	}

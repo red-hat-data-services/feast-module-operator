@@ -37,6 +37,7 @@ const (
 	yamlFieldReplicas           = "replicas:"
 	yamlFieldResources          = "resources:"
 	yamlFieldData               = "data:"
+	yamlFieldEnv                = "env:"
 	yamlFieldMetadata           = "metadata:"
 
 	tplReleaseNamespace   = "namespace: {{ default .Release.Namespace .Values.namespace }}"
@@ -136,6 +137,9 @@ func transformDeployment(obj *unstructured.Unstructured) (string, error) {
 
 	// Add imagePullSecrets
 	raw = addImagePullSecrets(raw)
+
+	// Inject extra env vars from .Values.extraEnvs
+	raw = injectExtraEnvs(raw)
 
 	return raw, nil
 }
@@ -544,30 +548,69 @@ func replaceWebhookNamespace(raw string) string {
 	return strings.Join(lines, "\n")
 }
 
+// injectExtraEnvs inserts a Helm range block after every env: key of a
+// container, rendering additional env vars from .Values.extraEnvs. When the
+// map is empty the block renders to nothing, leaving the manifest unchanged.
+// Entries must not reuse names already present on the container or the API
+// server rejects the resulting duplicate env vars.
+func injectExtraEnvs(raw string) string {
+	lines := strings.Split(raw, "\n")
+	var result []string
+
+	for _, line := range lines {
+		result = append(result, line)
+
+		if strings.TrimSpace(line) != yamlFieldEnv {
+			continue
+		}
+
+		indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
+		result = append(result,
+			indent+"{{- range $key, $val := .Values.extraEnvs }}",
+			indent+"- name: {{ $key | quote }}",
+			indent+"  value: {{ $val | quote }}",
+			indent+"{{- end }}",
+		)
+	}
+
+	return strings.Join(result, "\n")
+}
+
 // injectConfigMapValues replaces hardcoded data entries with Helm template
 // directives that merge .Values.config and .Values.imagePullSecret. Existing
 // key-value pairs under data: are dropped to avoid duplicate-key errors since
-// they are supplied via .Values.config at render time.
+// they are supplied via .Values.config at render time. When the source
+// ConfigMap has no data section at all, the directives are appended so the
+// render-time knobs are still honored (and the section stays absent when
+// both are empty).
 func injectConfigMapValues(raw string) string {
 	lines := strings.Split(raw, "\n")
 	var result []string
 	inData := false
+	hasData := false
+
+	dataDirectives := func(indent string) []string {
+		return []string{
+			indent + "{{- if or .Values.imagePullSecret .Values.config }}",
+			indent + "data:",
+			indent + "  {{- with .Values.imagePullSecret }}",
+			indent + "  imagePullSecret: {{ . }}",
+			indent + "  {{- end }}",
+			indent + "  {{- range $key, $val := .Values.config }}",
+			indent + "  {{ $key }}: {{ $val | quote }}",
+			indent + "  {{- end }}",
+			indent + "{{- end }}",
+		}
+	}
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
 		if trimmed == yamlFieldData {
 			inData = true
-			result = append(result, line)
+			hasData = true
 			indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
-			result = append(result,
-				indent+"  {{- with .Values.imagePullSecret }}",
-				indent+"  imagePullSecret: {{ . }}",
-				indent+"  {{- end }}",
-				indent+"  {{- range $key, $val := .Values.config }}",
-				indent+"  {{ $key }}: {{ $val | quote }}",
-				indent+"  {{- end }}",
-			)
+			result = append(result, dataDirectives(indent)...)
 			continue
 		}
 
@@ -580,6 +623,10 @@ func injectConfigMapValues(raw string) string {
 		}
 
 		result = append(result, line)
+	}
+
+	if !hasData {
+		result = append(result, dataDirectives("")...)
 	}
 
 	return strings.Join(result, "\n")

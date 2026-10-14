@@ -31,15 +31,26 @@ print(digest.hexdigest())
 PY
 }
 
-if [[ "${ODH_PLATFORM_TYPE:-OpenDataHub}" == "OpenDataHub" ]]; then
-    echo "Downloading manifests for ODH"
-    REPO_URL="https://github.com/opendatahub-io/feast"
-    COMMIT_SHA="586a5f3d5923cb44c55b5f7a4c2912585e3cef0c"
-else
-    echo "Downloading manifests for RHOAI"
-    REPO_URL="https://github.com/red-hat-data-services/feast"
-    COMMIT_SHA="de455fef0bc4a5680bab71645f065c9d086c8cb5"
-fi
+# ODH_PLATFORM_TYPE accepts the same friendly names as the Makefile
+# (odh | rhoai | managed-rhoai); the legacy value "OpenDataHub" is kept
+# for compatibility. An unset or empty value defaults to ODH.
+platform_type="${ODH_PLATFORM_TYPE:-odh}"
+case "${platform_type}" in
+    odh | OpenDataHub)
+        echo "Downloading manifests for ODH"
+        REPO_URL="https://github.com/opendatahub-io/feast"
+        COMMIT_SHA="586a5f3d5923cb44c55b5f7a4c2912585e3cef0c"
+        ;;
+    rhoai | managed-rhoai)
+        echo "Downloading manifests for RHOAI"
+        REPO_URL="https://github.com/red-hat-data-services/feast"
+        COMMIT_SHA="de455fef0bc4a5680bab71645f065c9d086c8cb5"
+        ;;
+    *)
+        echo "invalid ODH_PLATFORM_TYPE '${platform_type}' (expected odh, OpenDataHub, rhoai, or managed-rhoai)" >&2
+        exit 1
+        ;;
+esac
 
 if [[ "${USE_LOCAL:-}" == "true" ]] && [[ -d "${PROJECT_ROOT}/../feast" ]]; then
     echo "Copying manifests from adjacent feast checkout"

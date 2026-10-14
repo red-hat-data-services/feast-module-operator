@@ -31,12 +31,12 @@ import (
 )
 
 const (
-	// platformConfigCMName is the ConfigMap created by the ODH platform operator
-	// containing the platformVersion key. Format: odh-<modulename>-config.
-	platformConfigCMName = "odh-feastoperator-config"
+	// PlatformConfigCMName is the ConfigMap created by the ODH platform operator
+	// containing the platformVersion key.
+	PlatformConfigCMName = "odh-data-config"
 
-	// platformVersionKey is the data key in the platform config ConfigMap.
-	platformVersionKey = "platformVersion"
+	// PlatformVersionKey is the data key in the platform config ConfigMap.
+	PlatformVersionKey = "platformVersion"
 
 	// platformReleaseName is the name used in status.releases to track the
 	// platform version the module has reconciled against.
@@ -44,7 +44,7 @@ const (
 )
 
 // reconcilePlatformVersion implements the platform version handshake protocol.
-// It reads the platform version from the odh-feastoperator-config ConfigMap,
+// It reads the platform version from the odh-data-config ConfigMap,
 // compares it with the version recorded in status.releases[name="platform"],
 // performs any upgrade work if they differ, and writes the new version to status.
 func (m *Module) reconcilePlatformVersion(ctx context.Context, rr *odhtypes.ReconciliationRequest) error {
@@ -61,7 +61,7 @@ func (m *Module) reconcilePlatformVersion(ctx context.Context, rr *odhtypes.Reco
 			// ConfigMap not yet created by the platform — skip handshake.
 			// This happens during initial deployment before the platform reconciles.
 			log.V(1).Info("Platform config ConfigMap not found, skipping version handshake",
-				"configmap", platformConfigCMName)
+				"configmap", PlatformConfigCMName)
 			return nil
 		}
 		return fmt.Errorf("failed to read platform version: %w", err)
@@ -93,18 +93,18 @@ func (m *Module) reconcilePlatformVersion(ctx context.Context, rr *odhtypes.Reco
 	return nil
 }
 
-// getPlatformVersion reads the platformVersion from the odh-feastoperator-config ConfigMap.
+// getPlatformVersion reads the platformVersion from the odh-data-config ConfigMap.
 func (m *Module) getPlatformVersion(ctx context.Context, cl client.Client) (string, error) {
 	cm := &corev1.ConfigMap{}
 	err := cl.Get(ctx, client.ObjectKey{
-		Name:      platformConfigCMName,
+		Name:      PlatformConfigCMName,
 		Namespace: m.cfg.ApplicationsNamespace,
 	}, cm)
 	if err != nil {
 		return "", err
 	}
 
-	return cm.Data[platformVersionKey], nil
+	return cm.Data[PlatformVersionKey], nil
 }
 
 // handlePlatformUpgrade performs version-specific upgrade logic when the platform

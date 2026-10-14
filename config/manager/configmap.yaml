@@ -1,10 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: config
+  name: odh-data-config
   namespace: system
   labels:
     app.kubernetes.io/name: opendatahub-feast-operator
-data:
-  platform-name: "OpenDataHub"
-  platform-version: "unknown"
