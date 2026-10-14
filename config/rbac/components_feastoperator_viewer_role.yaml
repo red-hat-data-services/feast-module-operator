@@ -10,7 +10,7 @@ kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/name: opendatahub-feast-operator
-  name: components-feastoperator-viewer-role
+  name: opendatahub-feast-components-feastoperator-viewer-role
 rules:
 - apiGroups:
   - components.platform.opendatahub.io

@@ -47,7 +47,7 @@ func newTestModule(t *testing.T) *Module {
 	t.Helper()
 
 	cfg := &moduleconfig.Config{
-		PlatformName:          string(cluster.OpenDataHub),
+		PlatformType:          string(cluster.OpenDataHub),
 		PlatformVersion:       "1.0.0",
 		ManifestsPath:         "/manifests",
 		ApplicationsNamespace: "test-ns",
@@ -64,7 +64,7 @@ func newTestRR(obj *componentApi.FeastOperator) *odhtypes.ReconciliationRequest 
 		Instance:          obj,
 		ManifestsBasePath: "/manifests",
 		Release: (&moduleconfig.Config{
-			PlatformName:    string(cluster.OpenDataHub),
+			PlatformType:    string(cluster.OpenDataHub),
 			PlatformVersion: "1.0.0",
 		}).Release(),
 	}
@@ -105,7 +105,8 @@ func TestNewModuleProjectsKubeRBACProxyImage(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err := NewModule(&moduleconfig.Config{
-				PlatformName: tc.platform, ManifestsPath: manifests,
+				PlatformType:  tc.platform,
+				ManifestsPath: manifests,
 			}); err != nil {
 				t.Fatal(err)
 			}
@@ -124,7 +125,7 @@ func TestNewModule(t *testing.T) {
 	g := NewWithT(t)
 
 	cfg := &moduleconfig.Config{
-		PlatformName:    string(cluster.OpenDataHub),
+		PlatformType:    string(cluster.OpenDataHub),
 		PlatformVersion: "1.0.0",
 		ManifestsPath:   "/manifests",
 	}

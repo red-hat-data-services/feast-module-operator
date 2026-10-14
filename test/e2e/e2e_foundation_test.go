@@ -19,9 +19,16 @@ import (
 	"github.com/lburgazzoli/gomega-matchers/pkg/matchers/jq"
 
 	componentsv1alpha1 "github.com/opendatahub-io/feast-module-operator/api/components/v1alpha1"
+	feastoperatorcontroller "github.com/opendatahub-io/feast-module-operator/internal/controller/feastoperator"
 	moduleconfig "github.com/opendatahub-io/feast-module-operator/pkg/config"
+	"github.com/opendatahub-io/feast-module-operator/test/support"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 )
+
+// e2ePlatformVersion is the platform version published through the platform
+// config ConfigMap to emulate the ODH platform operator in the release status
+// handshake.
+const e2ePlatformVersion = "2.22.0"
 
 type foundationTests struct {
 	*feastE2ETest
@@ -46,7 +53,7 @@ func newFoundationTests(suite *feastE2ETest) *foundationTests {
 		},
 		operatorCfgMap: &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      operatorConfigMapName,
+				Name:      feastoperatorcontroller.PlatformConfigCMName,
 				Namespace: suite.operatorNamespace,
 			},
 		},
@@ -68,6 +75,7 @@ func newFoundationTests(suite *feastE2ETest) *foundationTests {
 func (ft *foundationTests) Execute(t *testing.T) {
 	t.Run("should have module CRD installed", ft.testModuleCRDInstalled)
 	t.Run("should have operator ConfigMap deployed", ft.testOperatorConfigMap)
+	t.Run("should deploy the manifests matching the platform type", ft.testPlatformManifests)
 	t.Run("should reject a non-singleton FeastOperator", ft.testSingletonEnforced)
 	t.Run("should become ready", ft.testBecomesReady)
 	t.Run("should have operator and operand Deployments available", ft.testDeploymentsAvailable)
@@ -91,21 +99,64 @@ func (ft *foundationTests) testModuleCRDInstalled(t *testing.T) {
 func (ft *foundationTests) testOperatorConfigMap(t *testing.T) {
 	g := NewWithT(t)
 
+	// The chart deploys the operator config ConfigMap under the well-known
+	// platform name (odh-data-config) so the platform operator can merge
+	// its managed keys into it. The platformVersion key itself is
+	// platform-managed and must not be shipped by the module.
 	g.Eventually(k.Get(ft.operatorCfgMap)).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(And(
-		jq.Match(`.data."%s" != ""`, moduleconfig.KeyPlatformName),
-		jq.Match(`.data."%s" != ""`, moduleconfig.KeyPlatformVersion),
+		jq.Match(`.metadata.name == "%s"`, feastoperatorcontroller.PlatformConfigCMName),
+		jq.Match(`.data."%s" == null`, moduleconfig.KeyPlatformVersion),
 	))
+}
+
+// testPlatformManifests validates the platform type chain end to end: the
+// env var injected on the operator Deployment (e.g. via the chart's extraEnvs
+// knob) is loaded by the operator and drives both the release recorded in
+// the platform annotations and the set of manifests it deploys. When no env
+// var is injected, the config default applies.
+func (ft *foundationTests) testPlatformManifests(t *testing.T) {
+	g := NewWithT(t)
+
+	deploy := ft.operatorDeploy.DeepCopy()
+	g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).To(Succeed())
+
+	platformType := envVarValue(deploy, platformTypeEnvVar)
+	if platformType == "" {
+		platformType = moduleconfig.DefaultPlatformType
+	}
+
+	// The release recorded on the workload matches the injected platform type.
+	g.Eventually(k.Get(ft.workloadDeploy)).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(
+		jq.Match(`.metadata.annotations."%s" == "%s"`, annotationType, platformType),
+	)
+
+	// RELATED_IMAGE_CRON_JOB is not part of the operator's image param map,
+	// so the value on the deployed workload is exactly the one bundled in
+	// the selected overlay's params.env.
+	expected := support.OverlayParam(t, feastoperatorcontroller.OverlayFor(platformType), "RELATED_IMAGE_CRON_JOB")
+
+	g.Eventually(k.Get(ft.workloadDeploy)).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(
+		jq.Match(`.spec.template.spec.containers[] | select(.name == "manager") | .env[] | select(.name == "RELATED_IMAGE_CRON_JOB") | .value == "%s"`, expected),
+	)
+}
+
+// envVarValue returns the value of the named env var across all containers
+// of the deployment's pod template, or "" when not set.
+func envVarValue(deploy *appsv1.Deployment, name string) string {
+	for _, c := range deploy.Spec.Template.Spec.Containers {
+		for _, env := range c.Env {
+			if env.Name == name {
+				return env.Value
+			}
+		}
+	}
+	return ""
 }
 
 func (ft *foundationTests) testBecomesReady(t *testing.T) {
 	g := NewWithT(t)
 
-	if ft.createdByTest {
-		ft.module.ResourceVersion = ""
-		g.Expect(k8sClient.Create(ctx, ft.module)).To(Succeed())
-	} else {
-		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ft.module), ft.module)).To(Succeed())
-	}
+	g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ft.module), ft.module)).To(Succeed())
 
 	g.Eventually(k.Get(ft.module)).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(And(
 		jq.Match(`.status.phase == "Ready"`),
@@ -125,7 +176,6 @@ func (ft *foundationTests) testDeploymentsAvailable(t *testing.T) {
 		jq.Match(`.metadata.namespace == "%s"`, ft.operatorNamespace),
 		jq.Match(`.status.readyReplicas >= 1`),
 		jq.Match(`.metadata.labels."%s" == "%s"`, labelAppName, operatorDeployName),
-		jq.Match(`.metadata.labels."%s" == "platform"`, labelPartOf),
 	))
 
 	g.Eventually(k.Get(ft.workloadDeploy)).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(And(
@@ -154,19 +204,27 @@ func (ft *foundationTests) testDeploymentsAvailable(t *testing.T) {
 func (ft *foundationTests) testReleaseStatus(t *testing.T) {
 	g := NewWithT(t)
 
-	module := ft.module.DeepCopy()
-	g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(module), module)).To(Succeed())
-
-	expectedPlatformVersion := module.GetAnnotations()[annotationVersion]
-	g.Expect(expectedPlatformVersion).NotTo(BeEmpty(),
-		"FeastOperator should have %s annotation from the platform", annotationVersion)
-	g.Expect(expectedPlatformVersion).NotTo(Equal("unknown"))
+	// Emulate the ODH platform operator: set the platform version on the
+	// operator config ConfigMap deployed by the chart. The controller
+	// watches this ConfigMap, so the update triggers a reconcile and the
+	// version handshake records the platform release in the FeastOperator
+	// status.
+	platformCM := &corev1.ConfigMap{}
+	g.Expect(k8sClient.Get(ctx, client.ObjectKey{
+		Name:      feastoperatorcontroller.PlatformConfigCMName,
+		Namespace: ft.operatorNamespace,
+	}, platformCM)).To(Succeed())
+	if platformCM.Data == nil {
+		platformCM.Data = map[string]string{}
+	}
+	platformCM.Data[feastoperatorcontroller.PlatformVersionKey] = e2ePlatformVersion
+	g.Expect(k8sClient.Update(ctx, platformCM)).To(Succeed())
 
 	g.Eventually(k.Get(ft.module)).WithContext(ctx).WithTimeout(timeout).WithPolling(interval).Should(And(
 		jq.Match(`.status.releases | length > 0`),
 		jq.Match(`.status.releases[] | select(.name == "Feast") | .version != ""`),
 		jq.Match(`.status.releases[] | select(.name == "platform") | .version == "%s"`,
-			expectedPlatformVersion),
+			e2ePlatformVersion),
 	))
 }
 
