@@ -39,12 +39,12 @@ case "${platform_type}" in
     odh | OpenDataHub)
         echo "Downloading manifests for ODH"
         REPO_URL="https://github.com/opendatahub-io/feast"
-        COMMIT_SHA="389c81738fb60394bb07e6fff358dc16ea8c6a42"
+        COMMIT_SHA="3c061739460c0b7004aa4963f81a5343bdfb5579"
         ;;
     rhoai | managed-rhoai)
         echo "Downloading manifests for RHOAI"
         REPO_URL="https://github.com/red-hat-data-services/feast"
-        COMMIT_SHA="5316210c35f6608cd248b5b8778d563214dec6e4"
+        COMMIT_SHA="95d67f02ffbc9c722482a148cf2b7fbe4aa51766"
         ;;
     *)
         echo "invalid ODH_PLATFORM_TYPE '${platform_type}' (expected odh, OpenDataHub, rhoai, or managed-rhoai)" >&2
