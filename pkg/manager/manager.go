@@ -40,9 +40,9 @@ import (
 	componentsv1alpha1 "github.com/opendatahub-io/feast-module-operator/api/components/v1alpha1"
 	"github.com/opendatahub-io/feast-module-operator/internal/controller/feastoperator"
 	moduleconfig "github.com/opendatahub-io/feast-module-operator/pkg/config"
+	odhmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	libcache "github.com/opendatahub-io/odh-platform-utilities/pkg/cache"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	odhmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 )
 
 const (

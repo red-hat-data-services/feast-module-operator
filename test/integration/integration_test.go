@@ -52,8 +52,8 @@ import (
 	feastoperatorcontroller "github.com/opendatahub-io/feast-module-operator/internal/controller/feastoperator"
 	moduleconfig "github.com/opendatahub-io/feast-module-operator/pkg/config"
 	"github.com/opendatahub-io/feast-module-operator/test/support"
+	odhmanager "github.com/opendatahub-io/odh-platform-utilities/framework/manager"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
-	odhmanager "github.com/opendatahub-io/opendatahub-operator/v2/pkg/manager"
 )
 
 const (
