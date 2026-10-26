@@ -36,6 +36,9 @@ import (
 
 	componentApi "github.com/opendatahub-io/feast-module-operator/api/components/v1alpha1"
 	moduleconfig "github.com/opendatahub-io/feast-module-operator/pkg/config"
+	fwapi "github.com/opendatahub-io/odh-platform-utilities/framework/api"
+	"github.com/opendatahub-io/odh-platform-utilities/framework/controller/actions/status/releases"
+	fwtypes "github.com/opendatahub-io/odh-platform-utilities/framework/controller/types"
 	"github.com/opendatahub-io/opendatahub-operator/v2/api/common"
 	"github.com/opendatahub-io/opendatahub-operator/v2/pkg/cluster"
 
@@ -234,13 +237,35 @@ func TestGetSetPlatformRelease(t *testing.T) {
 	// Simulate releases.NewAction() overwriting status.releases with
 	// component releases, then setPlatformRelease appending the platform
 	// entry — this mirrors the actual controller action ordering.
-	obj.SetReleaseStatus([]common.ComponentRelease{
-		{Name: "Feast", Version: "0.64.0"},
+	obj.SetReleaseStatus(common.ComponentReleaseStatus{
+		Releases: []common.ComponentRelease{
+			{Name: "Feast", Version: "0.64.0"},
+		},
 	})
 	g.Expect(getPlatformRelease(obj)).To(Equal(""))
 	setPlatformRelease(obj, "2.21.0")
 	g.Expect(getPlatformRelease(obj)).To(Equal("2.21.0"))
 	g.Expect(obj.Status.Releases).To(HaveLen(2))
+}
+
+// TestReleasesActionAcceptsFeastOperator ensures FeastOperator satisfies
+// WithReleases for framework releases.NewAction. Wrong accessor signatures
+// compile against PlatformObject but fail the runtime type assert and
+// short-circuit reconciliation before DeploymentsAvailable is set.
+func TestReleasesActionAcceptsFeastOperator(t *testing.T) {
+	g := NewWithT(t)
+
+	obj := newTestFeastOperator()
+	want := fwapi.ComponentReleaseStatus{
+		Releases: []fwapi.ComponentRelease{
+			{Name: "Feast", Version: "0.64.0"},
+		},
+	}
+
+	action := releases.NewAction(releases.WithComponentReleaseStatus(want))
+	err := action(context.Background(), &fwtypes.ReconciliationRequest{Instance: obj})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(obj.GetReleaseStatus().Releases).To(Equal(want.Releases))
 }
 
 func TestCleanupClusterResourcesRunsWhenCapabilityAbsent(t *testing.T) {
