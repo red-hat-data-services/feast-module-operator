@@ -25,9 +25,9 @@ rules:
   - create
   - get
   - list
+  - patch
   - update
   - watch
-  - patch
 - apiGroups:
   - ""
   resources:
@@ -206,6 +206,42 @@ rules:
   - list
   - patch
   - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - networkpolicies
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - olm.operatorframework.io
+  resources:
+  - clustercatalogs
+  verbs:
+  - get
+- apiGroups:
+  - olm.operatorframework.io
+  resources:
+  - clusterextensions
+  verbs:
+  - list
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - catalogsources
+  verbs:
+  - get
+- apiGroups:
+  - operators.coreos.com
+  resources:
+  - operatorconditions
+  verbs:
+  - list
 - apiGroups:
   - policy
   resources:

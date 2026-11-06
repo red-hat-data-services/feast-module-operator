@@ -28,8 +28,9 @@ const (
 	FeastOperatorKind          = "FeastOperator"
 )
 
-// Compile-time interface assertion.
+// Compile-time interface assertions.
 var _ common.PlatformObject = (*FeastOperator)(nil)
+var _ common.WithReleases = (*FeastOperator)(nil)
 
 // FeastOperatorSpec defines the desired state of FeastOperator.
 type FeastOperatorSpec struct {
@@ -110,12 +111,12 @@ func (c *FeastOperator) SetConditions(conditions []common.Condition) {
 	c.Status.SetConditions(conditions)
 }
 
-func (c *FeastOperator) GetReleaseStatus() *[]common.ComponentRelease {
-	return &c.Status.Releases
+func (c *FeastOperator) GetReleaseStatus() *common.ComponentReleaseStatus {
+	return &c.Status.ComponentReleaseStatus
 }
 
-func (c *FeastOperator) SetReleaseStatus(releases []common.ComponentRelease) {
-	c.Status.Releases = releases
+func (c *FeastOperator) SetReleaseStatus(status common.ComponentReleaseStatus) {
+	c.Status.ComponentReleaseStatus = status
 }
 
 // +kubebuilder:object:root=true
