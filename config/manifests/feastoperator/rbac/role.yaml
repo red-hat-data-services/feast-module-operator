@@ -25,7 +25,6 @@ rules:
   - create
   - get
   - list
-  - patch
   - update
   - watch
 - apiGroups:
@@ -130,6 +129,14 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - apiservers
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - dataregistry.opendatahub.io
@@ -275,6 +282,7 @@ rules:
   - create
   - get
   - list
+  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resourceNames:
